@@ -29,7 +29,7 @@ format:
 	$(UV) run --group dev ruff format .
 
 example: basis-check
-	$(UV) run --group dev copier copy --defaults --data-file examples/classification.yml . examples/generated
+	$(UV) run --group dev copier copy --defaults --data-file examples/classification.yml "$(CURDIR)" examples/generated
 
 basis-check:
 	$(UV) run --group dev python scripts/template_basis.py check

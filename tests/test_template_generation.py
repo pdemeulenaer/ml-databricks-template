@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import copier
@@ -161,7 +162,23 @@ def test_copier_update_preserves_project_customization(tmp_path):
     git(source, "commit", "-m", "Initial template")
     git(source, "tag", "v0.1.0")
     destination = tmp_path / "generated"
-    copier.run_copy(str(source), destination, defaults=True, quiet=True, vcs_ref="v0.1.0")
+    run(
+        [
+            sys.executable,
+            "-m",
+            "copier",
+            "copy",
+            "--defaults",
+            "--vcs-ref",
+            "v0.1.0",
+            str(source.resolve()),
+            str(destination),
+        ],
+        tmp_path,
+    )
+    answers = yaml.safe_load((destination / ".copier-answers.yml").read_text())
+    assert answers["_src_path"] == str(source.resolve())
+    assert answers["_commit"] == "v0.1.0"
     git(destination, "init", "--initial-branch=main")
     git(destination, "add", ".")
     git(destination, "commit", "-m", "Generate project")
@@ -179,8 +196,12 @@ def test_copier_update_preserves_project_customization(tmp_path):
     git(source, "add", ".")
     git(source, "commit", "-m", "Add release documentation")
     git(source, "tag", "v0.2.0")
-    copier.run_update(destination, defaults=True, quiet=True, overwrite=True, vcs_ref="v0.2.0")
+    # Run from the generated project's directory, using the source saved at creation.
+    # Omitting --vcs-ref should select the newest release tag.
+    run([sys.executable, "-m", "copier", "update", "--skip-answered"], destination)
     assert "Project-specific acceptance criteria." in customized.read_text()
     assert (destination / "docs/new-release.md").is_file()
     assert (destination / "template-basis.yml").read_text() == updated_basis
+    answers = yaml.safe_load((destination / ".copier-answers.yml").read_text())
+    assert answers["_commit"] == "v0.2.0"
     assert not list(destination.rglob("*.rej"))

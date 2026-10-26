@@ -62,6 +62,15 @@ DEV integration with isolated synthetic input. Record workspace/runtime versions
 results. Do not call a local-only release remotely verified.
 
 For tagged versions use `uvx copier copy --vcs-ref vX.Y.Z <source> <destination>`.
+Use a Git URL or absolute local source path. Before updating a generated repository,
+commit all intended files, including `.copier-answers.yml` and the generated dotfiles;
+Copier requires a clean Git working tree.
 Update from a clean generated Git repository using `uvx copier update`; inspect conflicts,
 run `uv lock` when dependencies change, and rerun local and authorized DEV checks.
 Version tags and publishing are operator actions; this scaffold does not create a release.
+
+If an early copy has a broken relative `_src_path`, correct it to the actual absolute
+source path or Git URL. A missing `_commit` is a separate issue: do not invent an old
+revision. Compare the existing scaffold with a fresh render of a known source revision
+and establish a matching baseline, preserving customizations. `copier recopy` does not
+preserve project evolution, so it is not a substitute for this comparison.

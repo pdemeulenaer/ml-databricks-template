@@ -1,5 +1,11 @@
 # Create a project
 
+For updatable projects, use a template source that already has a Git commit. Prefer
+a release tag when available. For a local template use an **absolute path**: Copier
+stores the source as supplied, and a relative path can stop resolving when you later
+run `copier update` from the generated project's directory. A Git repository URL also
+provides a stable source reference.
+
 ```bash
 uvx copier copy /path/to/repo-template /path/to/new-project
 cd /path/to/new-project
@@ -10,6 +16,9 @@ uv run pre-commit install
 ```
 
 Commit the generated lockfile and Copier answers when initializing your new Git repository.
+The answers file should contain `_src_path` and `_commit`. If `_commit` is missing,
+the project was generated from an unversioned source and needs a verified baseline
+before normal updates can work.
 No Copier tasks execute automatically. `examples/*.yml` contain reproducible answer sets;
 `make example` creates a local reference under `examples/generated` without deployment.
 
