@@ -1,0 +1,43 @@
+_min_copier_version: "9.4.0"
+_subdirectory: template
+_answers_file: .copier-answers.yml
+_templates_suffix: .jinja
+_envops:
+  keep_trailing_newline: true
+
+project_name:
+  type: str
+  help: Repository name (lowercase letters, numbers and hyphens)
+  default: my-ml-project
+  validator: "{% if not (project_name | regex_search('^[a-z][a-z0-9-]*$')) %}Use a lowercase repository slug{% endif %}"
+project_title:
+  type: str
+  help: Human-readable project title
+  default: "{{ project_name | replace('-', ' ') | title }}"
+package_name:
+  type: str
+  help: Python package and default schema prefix
+  default: "{{ project_name | replace('-', '_') }}"
+  validator: >-
+    {% if not (package_name | regex_search('^[a-z][a-z0-9_]*$')) or package_name in
+    ['class', 'def', 'import', 'from', 'global', 'return', 'yield', 'raise', 'try',
+    'except', 'finally', 'for', 'while', 'if', 'else', 'elif', 'pass', 'break',
+    'continue', 'with', 'as', 'assert', 'del', 'lambda', 'nonlocal', 'and', 'or',
+    'not', 'in', 'is', 'async', 'await', 'match', 'case'] %}Use a non-keyword lowercase Python identifier{% endif %}
+problem_type:
+  type: str
+  help: Example and split strategy
+  choices: [classification, regression, forecasting]
+  default: classification
+workspace_topology:
+  type: str
+  help: Deployment isolation
+  choices:
+    Separate DEV/QA/PROD workspaces and catalogs: separate_workspaces
+    One workspace with DEV/QA/PROD catalogs: single_workspace
+  default: separate_workspaces
+ingestion_mode:
+  type: str
+  help: Batch snapshots or incremental immutable JSON files
+  choices: [batch, arriving_files]
+  default: batch

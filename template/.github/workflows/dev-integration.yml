@@ -1,0 +1,39 @@
+name: DEV integration (explicit)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: dev-integration
+  cancel-in-progress: false
+jobs:
+  integration:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    environment: dev
+    runs-on: ubuntu-latest
+    env:
+      DATABRICKS_AUTH_TYPE: github-oidc
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_DEV_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_WORKSPACE_HOST: ${{ vars.DATABRICKS_HOST }}
+      BUNDLE_VAR_catalog: ${{ vars.CATALOG }}
+      BUNDLE_VAR_namespace: ${{ vars.DATA_NAMESPACE }}
+      BUNDLE_VAR_source_revision: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.13"
+      - uses: databricks/setup-cli@v0.292.0
+        with:
+          version: "1.22.1"
+      - run: uv sync --locked --group dev --group docs
+      - name: Configure explicit CI profile (federation; no token)
+        run: |
+          printf '[ci]\nhost = %s\nclient_id = %s\nauth_type = github-oidc\n' "$DATABRICKS_HOST" "$DATABRICKS_CLIENT_ID" > "$RUNNER_TEMP/databrickscfg"
+          echo "DATABRICKS_CONFIG_FILE=$RUNNER_TEMP/databrickscfg" >> "$GITHUB_ENV"
+      - run: make test lint security docs-build
+      - run: make bundle-validate bundle-deploy PROFILE=ci TARGET=dev
+      - run: make integration-dev PROFILE=ci

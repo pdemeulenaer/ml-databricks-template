@@ -1,0 +1,12 @@
+---
+name: ml-workflow
+description: {{ ("Change the " ~ project_title ~ " data, " ~ problem_type ~ " model, scoring or monitoring workflow and verify the affected contracts.") | to_json }}
+---
+
+Trace the affected command from `jobs/cli.py` into the pure modules and remote adapter.
+Change transformations and model-facing columns together. Add tests for the actual
+leakage risk and prediction contract, then run `make test lint security docs-build`.
+Use `make demo` for a local end-to-end check. Update the appropriate docs page.
+For bundle changes, run the offline schema check and, when remote access is authorized,
+`make bundle-validate PROFILE=<chosen> TARGET=dev`. Run `make integration-dev` only
+against an explicitly selected, isolated DEV namespace after deployment.

@@ -1,0 +1,30 @@
+# Architecture
+
+```mermaid
+flowchart LR
+  L[Governed landing files] --> B[Bronze raw]
+  B --> S[Silver curated]
+  S --> G[Gold model inputs]
+  G --> T[Training and evaluation]
+  T --> M[Unity Catalog model version]
+  M --> I[Batch inference]
+  G --> I
+  I --> P[Prediction history]
+  P --> O[Monitoring metrics and reports]
+```
+
+{% if workspace_topology == 'separate_workspaces' %}
+The selected topology uses separate DEV, QA and PROD workspaces and catalogs.
+{% else %}
+The selected topology uses one workspace with separate DEV, QA and PROD catalogs.
+Catalog separation in one workspace provides less isolation than separate workspaces.
+Configure catalog grants deliberately; bundle targets are not a security boundary.
+{% endif %}
+Use workspace-catalog bindings and intentional grants to restrict PROD access.
+A shared metastore permits approved cross-catalog model copies; different metastores
+need an artifact export/import process with provenance and checksum verification.
+
+Every catalog has project-prefixed schemas: `landing`, `bronze`, `silver`, `gold`,
+`models`, `predictions`, `monitoring`. The landing schema holds a governed volume,
+not a table of files. Prediction outputs are separate from Gold feature inputs.
+Bundle targets select deployment settings; grants and bindings enforce isolation.

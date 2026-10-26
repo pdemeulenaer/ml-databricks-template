@@ -1,0 +1,23 @@
+"""Prediction rows retain identity and inputs, never a presumed observed label."""
+
+from datetime import UTC, datetime
+
+import numpy as np
+import pandas as pd
+
+from {{ package_name }}.config import FEATURES
+
+
+def score(
+    model, frame: pd.DataFrame, *, model_name: str, model_version: str, data_reference: str
+) -> pd.DataFrame:
+    """Produce an auditable scoring batch for a resolved immutable model version."""
+    if frame.empty or not np.isfinite(frame[FEATURES].to_numpy()).all():
+        raise ValueError("Scoring inputs must be non-empty and finite")
+    result = frame[["id", "series_id", "event_time", "label_time", *FEATURES]].copy()
+    result["prediction"] = model.predict(frame[FEATURES])
+    result["predicted_at"] = datetime.now(UTC)
+    result["model_name"] = model_name
+    result["model_version"] = str(model_version)
+    result["data_reference"] = data_reference
+    return result

@@ -1,0 +1,18 @@
+"""Metrics computed only from observed labels."""
+
+import numpy as np
+from sklearn.metrics import accuracy_score, mean_absolute_error, mean_squared_error
+
+from {{ package_name }}.config import PROBLEM
+
+
+def evaluate(y_true, y_pred) -> dict[str, float]:
+    """Reject missing labels instead of reporting fictitious production accuracy."""
+    if len(y_true) == 0 or not np.isfinite(y_true).all():
+        raise ValueError("Non-empty, observed, finite ground truth is required")
+    if PROBLEM == "classification":
+        return {"accuracy": float(accuracy_score(y_true, y_pred))}
+    return {
+        "rmse": float(np.sqrt(mean_squared_error(y_true, y_pred))),
+        "mae": float(mean_absolute_error(y_true, y_pred)),
+    }

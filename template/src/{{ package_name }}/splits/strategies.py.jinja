@@ -1,0 +1,47 @@
+"""Independent-observation and purged chronological holdouts."""
+
+from dataclasses import dataclass
+
+import pandas as pd
+from sklearn.model_selection import train_test_split
+
+
+@dataclass(frozen=True)
+class Split:
+    """Disjoint partitions. Validation is reserved for model selection."""
+
+    train: pd.DataFrame
+    validation: pd.DataFrame
+    test: pd.DataFrame
+
+
+def random_split(frame: pd.DataFrame, *, classification: bool, seed: int = 42) -> Split:
+    """60/20/20; stratify both stages for the independent classification example."""
+    stratify = frame.target if classification else None
+    train, remainder = train_test_split(frame, test_size=0.4, random_state=seed, stratify=stratify)
+    validation, test = train_test_split(
+        remainder,
+        test_size=0.5,
+        random_state=seed,
+        stratify=remainder.target if classification else None,
+    )
+    return Split(train, validation, test)
+
+
+def chronological_split(frame: pd.DataFrame, *, gap_hours: int = 0) -> Split:
+    """Use global origin cutoffs across series and purge labels crossing boundaries."""
+    if gap_hours < 0:
+        raise ValueError("Gap cannot be negative")
+    times = sorted(frame.event_time.unique())
+    if len(times) < 30:
+        raise ValueError("At least 30 distinct timestamps are required")
+    validation_start, test_start = times[int(len(times) * 0.6)], times[int(len(times) * 0.8)]
+    gap = pd.Timedelta(hours=gap_hours)
+    train = frame[frame.label_time < validation_start - gap]
+    validation = frame[
+        (frame.event_time >= validation_start) & (frame.label_time < test_start - gap)
+    ]
+    test = frame[frame.event_time >= test_start]
+    if min(map(len, (train, validation, test))) == 0:
+        raise ValueError("Insufficient observations after purging")
+    return Split(train, validation, test)

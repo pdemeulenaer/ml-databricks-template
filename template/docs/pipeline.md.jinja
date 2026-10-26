@@ -1,0 +1,21 @@
+# Data pipeline
+
+{% if ingestion_mode == 'batch' %}
+The selected batch workflow reads JSON files from a Unity Catalog volume into a Bronze
+materialized view.
+{% else %}
+The selected arriving-file workflow uses Auto Loader to ingest immutable JSON files
+from a governed volume into a streaming Bronze table.
+{% endif %} Silver drops missing timestamps and invalid numeric inputs, fails missing IDs,
+and warns on missing labels. Gold fails duplicate IDs and builds model-ready features.
+Inspect Lakeflow expectation metrics for violation counts. Raw records stay in Bronze;
+this example uses warn/drop/fail and does not implement a separate quarantine table.
+
+The arriving-files option uses Auto Loader into a streaming Bronze table and batch
+materialized views downstream. Refreshes run on the job schedule; this is incremental
+file ingestion, not an always-on service. Pipeline-managed checkpoints belong to the
+pipeline. Keep input files immutable. Changing batch to streaming after deployment
+requires a migration or a new pipeline/table name.
+
+Local pandas transformations exercise the same contract; the PySpark adapter must
+also pass the DEV workflow before a release is considered remotely verified.

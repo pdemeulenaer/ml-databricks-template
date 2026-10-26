@@ -1,0 +1,41 @@
+"""Deterministic, small synthetic data. No external data access."""
+
+import numpy as np
+import pandas as pd
+
+from {{ package_name }}.config import PROBLEM
+
+
+def generate(n: int = 600, seed: int = 42) -> pd.DataFrame:
+    """Generate independent observations or two regular hourly series."""
+    if n < 100:
+        raise ValueError("At least 100 observations are needed")
+    rng = np.random.default_rng(seed)
+    if PROBLEM == "forecasting":
+        frames = []
+        for series in ("north", "south"):
+            t = np.arange(n)
+            y = 20 + (series == "south") * 5 + 0.01 * t + 3 * np.sin(t * 2 * np.pi / 24)
+            frames.append(
+                pd.DataFrame(
+                    {
+                        "id": [f"{series}-{i}" for i in t],
+                        "series_id": series,
+                        "event_time": pd.date_range("2025-01-01", periods=n, freq="h"),
+                        "target": y + rng.normal(0, 0.3, n),
+                    }
+                )
+            )
+        return pd.concat(frames, ignore_index=True)
+    x1, x2 = rng.normal(size=(2, n))
+    score = 2 * x1 - x2 + rng.normal(0, 0.3, n)
+    return pd.DataFrame(
+        {
+            "id": [f"row-{i}" for i in range(n)],
+            "series_id": "observations",
+            "event_time": pd.date_range("2025-01-01", periods=n, freq="h"),
+            "x1": x1,
+            "x2": x2,
+            "target": (score > 0).astype(float) if PROBLEM == "classification" else score,
+        }
+    )

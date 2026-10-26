@@ -1,0 +1,38 @@
+# Monitoring
+
+| Area | Baseline signal | Interpretation |
+| --- | --- | --- |
+| Pipeline quality | Lakeflow expectation metrics | Invalid rows warned, dropped or failed |
+| Input drift | Maximum mean shift / training standard deviation | Breach above 3; not a statistical drift test |
+| Prediction behavior | Row count and prediction mean | Distribution summary per model version |
+| Performance | Accuracy or RMSE/MAE after outcome joins | Unavailable until real labels arrive |
+| Operations | Job failure, model version, scoring timestamp | Operational health, separate from accuracy |
+
+The monitoring job considers the last 24 hours, writes `monitoring.metrics`, and logs
+standalone HTML dashboards plus JSON to MLflow. It fails when there are no predictions,
+null features or a mean shift above the threshold. Configure job failure notification
+recipients before enabling schedules. The default does not send any messages.
+The local demo demonstrates delayed labels; the remote adapter currently reports only
+unlabeled behavior. Add your governed outcome table and join keys before enabling
+remote performance metrics. The bounded example is not a fleet-scale drift service.
+
+## Databricks data profiling
+
+As an explicit follow-up after DEV approval, open Catalog Explorer, the predictions
+table, **Quality**, then configure **Data profiling**. Choose an Inference profile,
+`predicted_at` as timestamp, `prediction` as prediction, and `model_version` as model ID.
+Use regression for forecasting, classification for binary classification. Add an outcome
+column only after labels exist. Select the project monitoring schema for metric tables.
+Use a baseline table with matching feature columns and model IDs; the JSON mean baseline
+used by this demo is not a Databricks profiling baseline table.
+
+Databricks profiling creates profile/drift metric tables and a customizable dashboard.
+Configure refresh scheduling, failure notifications, and metric alerts in the workspace.
+It needs UC, Databricks SQL, SELECT plus USE CATALOG/SCHEMA and MANAGE privileges.
+Time-series/inference profiles initially analyze the preceding 30 days. Materialized
+view profiles do not support incremental processing. Verify availability and expense
+for the chosen workspace before enabling it. No profiling service or AI/BI dashboard
+has been created or claimed as workspace-tested by this template.
+
+See [data profiling](https://docs.databricks.com/aws/en/data-governance/unity-catalog/data-quality-monitoring/data-profiling/)
+and [profile configuration](https://docs.databricks.com/aws/en/data-governance/unity-catalog/data-quality-monitoring/data-profiling/create-monitor-ui).

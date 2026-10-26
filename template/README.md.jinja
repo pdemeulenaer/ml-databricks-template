@@ -1,0 +1,20 @@
+# {{ project_title }}
+
+A modular {{ problem_type }} example with synthetic data, local MLflow tracking, and
+Databricks Declarative Automation Bundles. Read `docs/operations.md` before deploying.
+
+```bash
+uv sync --group dev --group docs
+make test lint security docs-build
+make demo
+make docs  # PORT=8001 to override
+```
+
+The demo writes predictions, metrics and two monitoring dashboards under
+`artifacts/demo/`. One report has no outcomes; the second demonstrates a delayed
+label join on the untouched synthetic test set. No Databricks credentials are needed.
+Commit `uv.lock` after `uv lock` and use `uv sync --locked` in CI.
+
+`template-basis.yml` records the reviewed skill versions/hashes, tested Databricks CLI
+and validation scope of the template. `.copier-answers.yml` identifies the template
+source and Git revision when available. See `docs/operations.md` for their update policy.

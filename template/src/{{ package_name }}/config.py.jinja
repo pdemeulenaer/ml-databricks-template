@@ -1,0 +1,34 @@
+"""Model contract for the reference example."""
+
+from dataclasses import dataclass
+
+PROBLEM = "{{ problem_type }}"
+{% if problem_type == "forecasting" %}
+FEATURES = ["lag_1", "lag_24", "hour_sin", "hour_cos"]
+{% else %}
+FEATURES = ["x1", "x2"]
+{% endif %}
+HORIZON = 3
+LOOKBACK = 24
+
+
+@dataclass(frozen=True)
+class Settings:
+    """Validate identifiers at the external configuration boundary."""
+
+    catalog: str
+    namespace: str
+
+    def __post_init__(self):
+        import re
+
+        for value in (self.catalog, self.namespace):
+            if not re.fullmatch(r"[a-z][a-z0-9_]*", value):
+                raise ValueError(f"Use a lowercase SQL identifier: {value!r}")
+
+    def table(self, layer: str, name: str) -> str:
+        return f"{self.catalog}.{self.namespace}_{layer}.{name}"
+
+    @property
+    def model_name(self) -> str:
+        return self.table("models", "model")

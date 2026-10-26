@@ -1,0 +1,58 @@
+"""Portable monitoring baseline with an HTML report and explicit breach flags."""
+
+import html
+import json
+from pathlib import Path
+
+import pandas as pd
+
+from {{ package_name }}.config import FEATURES
+from {{ package_name }}.evaluation.metrics import evaluate
+
+
+def summarize(
+    predictions: pd.DataFrame, baseline: dict, labels: pd.DataFrame | None = None
+) -> dict:
+    """Measure behavior and mean shift; performance requires separately joined outcomes."""
+    metrics = {
+        "row_count": len(predictions),
+        "prediction_mean": None,
+        "max_standardized_mean_shift": None,
+        "observed_label_count": 0,
+    }
+    if predictions.empty:
+        metrics["breach"] = True
+        return metrics
+    shifts = [
+        abs(float(predictions[c].mean()) - baseline[c]["mean"]) / max(baseline[c]["std"], 1e-8)
+        for c in FEATURES
+    ]
+    metrics.update(
+        prediction_mean=float(predictions.prediction.mean()),
+        max_standardized_mean_shift=max(shifts),
+        null_feature_fraction=float(predictions[FEATURES].isna().to_numpy().mean()),
+    )
+    metrics["breach"] = max(shifts) > 3 or metrics["null_feature_fraction"] > 0
+    if labels is not None:
+        joined = predictions.merge(labels[["id", "target"]], on="id", validate="many_to_one")
+        joined = joined.dropna(subset=["target"])
+        metrics["observed_label_count"] = len(joined)
+        if not joined.empty:
+            metrics.update(evaluate(joined.target, joined.prediction))
+    return metrics
+
+
+def write_report(metrics: dict, path: Path) -> None:
+    """Write a standalone dashboard; escape all dynamic text."""
+    rows = "".join(
+        f"<tr><th>{html.escape(k)}</th><td>{html.escape(str(v))}</td></tr>"
+        for k, v in metrics.items()
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        '<!doctype html><html lang="en"><meta charset="utf-8">'
+        "<title>Batch monitoring</title><h1>Batch monitoring</h1>"
+        "<p>Mean-shift alert threshold: 3 training standard deviations. "
+        "Accuracy requires observed labels.</p><table>" + rows + "</table></html>"
+    )
+    path.with_suffix(".json").write_text(json.dumps(metrics, indent=2, allow_nan=False))

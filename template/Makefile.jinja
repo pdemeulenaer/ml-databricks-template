@@ -1,0 +1,66 @@
+.DEFAULT_GOAL := help
+PORT ?= 8000
+PROFILE ?=
+TARGET ?= dev
+UV ?= uv
+
+.PHONY: help install test lint format security demo docs docs-serve docs-build docs-clean build require-profile bundle-validate bundle-deploy integration-dev
+help:
+	@printf '%s\n' \
+		'install          Sync local development and documentation dependencies' \
+		'test             Run local unit tests' \
+		'lint             Check formatting and lint' \
+		'format           Format Python files' \
+		'security         Scan Python with Bandit' \
+		'demo             Train and score synthetic data locally' \
+		'docs             Serve documentation at http://127.0.0.1:$(PORT)' \
+		'docs-build       Build documentation and check for warnings' \
+		'docs-clean       Remove the generated site directory' \
+		'bundle-validate  Validate using explicit PROFILE and TARGET' \
+		'bundle-deploy    Deploy using explicit PROFILE and TARGET' \
+		'integration-dev  Run deployed DEV integration job; writes data and trains'
+install:
+	$(UV) sync --group dev --group docs
+
+test:
+	$(UV) run --group dev pytest
+
+lint:
+	$(UV) run --group dev ruff check .
+	$(UV) run --group dev ruff format --check .
+
+format:
+	$(UV) run --group dev ruff check --fix .
+	$(UV) run --group dev ruff format .
+
+security:
+	$(UV) run --group dev bandit -q -r src -c pyproject.toml
+
+demo:
+	$(UV) run ml-workflow demo
+
+docs docs-serve:
+	$(UV) run --group docs mkdocs serve -a 127.0.0.1:$(PORT)
+
+docs-build:
+	$(UV) run --group docs mkdocs build --strict
+
+docs-clean:
+	rm -rf site
+
+build:
+	$(UV) build
+
+require-profile:
+	@test -n "$(PROFILE)" || (printf '%s\n' 'Set PROFILE explicitly; no default profile is selected.' >&2; exit 2)
+
+bundle-validate: require-profile
+	$(UV) run python scripts/export_runtime.py
+	databricks bundle validate --strict --target "$(TARGET)" --profile "$(PROFILE)"
+
+bundle-deploy: require-profile
+	$(UV) run python scripts/export_runtime.py
+	databricks bundle deploy --target "$(TARGET)" --profile "$(PROFILE)"
+
+integration-dev: require-profile
+	databricks bundle run integration_dev --target dev --profile "$(PROFILE)"

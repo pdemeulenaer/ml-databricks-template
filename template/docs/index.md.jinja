@@ -1,0 +1,9 @@
+# {{ project_title }}
+
+Start with `uv sync --group dev --group docs`, then `make test lint security docs-build`
+and `make demo`. Open `artifacts/demo/monitoring.html` to inspect unlabeled prediction
+behavior, and `monitoring-with-labels.html` to see held-out synthetic performance.
+
+This repository separates pure model logic from Databricks adapters. The local demo
+uses synthetic data and a local MLflow SQLite store. Remote jobs use Unity Catalog
+and workspace MLflow tracking. Local checks do not establish workspace compatibility.

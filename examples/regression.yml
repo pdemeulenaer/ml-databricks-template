@@ -1,0 +1,6 @@
+project_name: example-regression
+project_title: Example Regression
+package_name: example_regression
+problem_type: regression
+workspace_topology: separate_workspaces
+ingestion_mode: batch

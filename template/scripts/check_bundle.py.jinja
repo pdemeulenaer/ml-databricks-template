@@ -1,0 +1,44 @@
+"""Offline validation of bundle resources against the installed CLI JSON schema."""
+
+import json
+import subprocess
+from pathlib import Path
+
+import jsonschema
+import yaml
+
+
+def normalize_patterns(value):
+    """Translate the CLI's Go Unicode classes for this template's ASCII identifiers."""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key == "pattern":
+                value[key] = child.replace(r"[\p{L}\p{N}]", "[A-Za-z0-9]").replace(
+                    r"\p{L}", "[A-Za-z]"
+                )
+            else:
+                normalize_patterns(child)
+    elif isinstance(value, list):
+        for child in value:
+            normalize_patterns(child)
+    return value
+
+
+def main():
+    schema = json.loads(
+        subprocess.run(
+            ["databricks", "bundle", "schema"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+    )
+    for path in [Path("databricks.yml"), *Path("resources").glob("*.yml")]:
+        jsonschema.Draft202012Validator(normalize_patterns(schema)).validate(
+            yaml.safe_load(path.read_text())
+        )
+    print("Offline resource schemas passed; authenticated bundle validate is still required.")
+
+
+if __name__ == "__main__":
+    main()

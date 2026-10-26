@@ -1,0 +1,48 @@
+"""Package monitoring metadata inside the model so it survives registry promotion."""
+
+import importlib.metadata
+import json
+import tempfile
+from pathlib import Path
+
+import mlflow.sklearn
+from mlflow.models import infer_signature
+
+from {{ package_name }}.config import FEATURES, PROBLEM
+
+
+def log_model(result, *, source_revision: str):
+    """Log a typed model contract and portable baseline alongside the fitted estimator."""
+    sample = result.test[FEATURES].head(5)
+    with tempfile.TemporaryDirectory() as directory:
+        baseline = Path(directory) / "baseline.json"
+        baseline.write_text(json.dumps(result.baseline, allow_nan=False))
+        provenance = Path(directory) / "provenance.json"
+        provenance.write_text(
+            json.dumps(
+                {
+                    "source_revision": source_revision,
+                    "problem_type": PROBLEM,
+                    "dependencies": {
+                        name: importlib.metadata.version(name)
+                        for name in ("mlflow", "numpy", "pandas", "scikit-learn")
+                    },
+                },
+                indent=2,
+            )
+        )
+        return mlflow.sklearn.log_model(
+            result.model,
+            name="model",
+            input_example=sample,
+            signature=infer_signature(sample, result.model.predict(sample)),
+            extra_files=[str(baseline), str(provenance)],
+            skops_trusted_types=["sklearn.tree._tree.Tree"],
+        )
+
+
+def load_baseline(model_uri: str) -> dict:
+    """Read the monitoring baseline from the same immutable artifact as the estimator."""
+    with tempfile.TemporaryDirectory() as directory:
+        artifact = mlflow.artifacts.download_artifacts(artifact_uri=model_uri, dst_path=directory)
+        return json.loads((Path(artifact) / "extra_files/baseline.json").read_text())

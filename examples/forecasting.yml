@@ -1,0 +1,6 @@
+project_name: example-forecasting
+project_title: Example Forecasting
+package_name: example_forecasting
+problem_type: forecasting
+workspace_topology: separate_workspaces
+ingestion_mode: batch

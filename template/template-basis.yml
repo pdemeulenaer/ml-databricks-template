@@ -1,0 +1,41 @@
+# Reviewed basis, not a record of whatever happens to be installed.
+# Edit deliberately after review and verification; then run make basis-sync.
+schema_version: 1
+reviewed_on: '2026-10-26'
+databricks:
+  skill_pack_version: 0.2.35
+  skills_reviewed:
+    databricks-core:
+      version: 0.1.0
+      sha256: 8f8d5f61c53938b5ee9d60e01937726a749146e41036344acbbba6bcb7a39d59
+    databricks-dabs:
+      version: null
+      sha256: 1e79d460dd49b7eafcb24a470d37274c79731e83220d76b5272b30d486b1f55c
+    databricks-jobs:
+      version: 0.3.0
+      sha256: 458cdbf6f418ed2e663a1e43a03631f02b6595c582860879c4a79497e4709e6b
+    databricks-pipelines:
+      version: 0.3.0
+      sha256: bfc8dcff6ba5af2b117fca10b489e176ac3a04abf7dc26e409d5d894ce0a3b52
+    databricks-serverless:
+      version: 0.3.2
+      sha256: b21a23d554f2e5ae5c6d3ccdcc08e92e811f2a1b98082fe092c4f970c5a17ff7
+    databricks-ml-training:
+      version: 0.1.0
+      sha256: 05914ec3aafe12db6a90b8a641ee2c671ab44220862d886c21ae4de04ba10cdd
+    databricks-synthetic-data-gen:
+      version: 0.1.0
+      sha256: d15491624bdc0be2069c31352bcf571d9b9f15355ba3fc4e315cfde2b54abd3e
+    databricks-unity-catalog:
+      version: 0.3.0
+      sha256: a1d8a2dbb572ff4197d362d026335e2615336dad8b0620235b4debd5cdf1ae90
+  cli_version: 1.22.1
+validation:
+  local_checks: passed
+  bundle_schema_check: passed
+  dev_workspace_integration: not_run
+validation_evidence:
+  local_checks: make lint test docs-build; generated unit tests, lint, Bandit, strict docs, wheel builds
+    and MLflow demos
+  bundle_schema_check: Offline resource validation against databricks bundle schema from CLI 1.22.1
+  dev_workspace_integration: No workspace credentials or remote execution were authorized or used

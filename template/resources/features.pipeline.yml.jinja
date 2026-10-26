@@ -1,0 +1,20 @@
+resources:
+  pipelines:
+    features:
+      name: ${bundle.name}-features
+      catalog: ${var.catalog}
+      schema: ${resources.schemas.gold.name}
+      serverless: true
+      continuous: false
+      libraries:
+        - file:
+            path: ../pipelines/transformations.py
+      environment:
+        environment_version: "${var.runtime_version}"
+        dependencies: [../dist/*.whl]
+      configuration:
+        project.catalog: ${var.catalog}
+        project.namespace: ${var.namespace}
+        project.bronze_schema: ${resources.schemas.bronze.name}
+        project.silver_schema: ${resources.schemas.silver.name}
+        project.landing_volume: ${resources.volumes.landing_files.name}

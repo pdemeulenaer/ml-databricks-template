@@ -1,0 +1,14 @@
+# Use case
+
+{% if problem_type == 'forecasting' %}
+Forecast two related hourly series three hours ahead using lagged observations and
+known hour-of-day encodings. Chronological cutoffs and purged labels prevent leakage.
+{% elif problem_type == 'regression' %}
+Predict a continuous outcome from two independent numeric measurements. Synthetic
+labels follow a noisy linear relationship. Use a seeded random split for this example.
+{% else %}
+Predict a binary outcome from two independent numeric measurements. Synthetic labels
+follow a noisy linear boundary. Both split stages are stratified by the target.
+{% endif %}
+A small random forest is a baseline. Extract the data contract, transformations,
+leakage-aware split, training and scoring modules when migrating an existing notebook.

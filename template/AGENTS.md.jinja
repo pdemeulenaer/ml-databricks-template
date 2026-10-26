@@ -1,0 +1,27 @@
+# {{ project_title }} project guidance
+
+This is a {{ problem_type }} project generated from a Copier template. Edit this
+project's modules directly; update from the template using `copier update` in Git.
+Use Python 3.12 and uv. Local checks: `make test lint security docs-build`.
+Run `make demo` after changing the ML contract. Keep docs and tests aligned.
+
+`template-basis.yml` records the template's reviewed Databricks skills and tested CLI.
+For Databricks changes, consult the installed `databricks-core` and relevant product
+skills when available. Preserve established project decisions; a newer recommendation
+alone does not authorize restructuring. Update this snapshot through Copier updates;
+record project-specific validation separately in the operations documentation.
+
+Production code belongs in `src/{{ package_name }}/`; notebooks are for exploration.
+{% if problem_type == 'forecasting' %}
+Use chronological splits, global time cutoffs across series and horizon-aware label
+purging. Preserve the future-value invariance test when changing features.
+{% else %}
+The example assumes independent observations. Revisit stratification, groups and time
+boundaries when real data changes that assumption. Test data is not tuning data.
+{% endif %}
+Resolve immutable model versions for QA/PROD. Only set DEV candidate from training.
+Keep Gold inputs separate from predictions. Accuracy requires observed outcomes.
+
+Never select a Databricks profile automatically. Ask the operator to choose and always
+pass `--profile`. Remote execution requires explicit authorization. Local checks need
+no credentials. Do not deploy QA/PROD or use credentials as a side effect of a local task.

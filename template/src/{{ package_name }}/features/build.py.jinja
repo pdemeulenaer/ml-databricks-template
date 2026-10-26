@@ -1,0 +1,43 @@
+"""Pure transformations shared by local training and scoring."""
+
+import numpy as np
+import pandas as pd
+
+from {{ package_name }}.config import FEATURES, HORIZON, LOOKBACK, PROBLEM
+
+
+def curate(raw: pd.DataFrame) -> pd.DataFrame:
+    """Fail ambiguous keys; drop invalid feature values; permit missing future labels."""
+    required = {"id", "series_id", "event_time", "target"}
+    required |= set() if PROBLEM == "forecasting" else set(FEATURES)
+    if required - set(raw):
+        raise ValueError(f"Missing columns: {required - set(raw)}")
+    if raw.id.isna().any() or raw.id.duplicated().any():
+        raise ValueError("Observation IDs must be non-null and unique")
+    frame = raw.copy()
+    frame["event_time"] = pd.to_datetime(frame.event_time, errors="raise")
+    frame = frame.dropna(subset=["series_id", "event_time"])
+    numeric = ["target"] if PROBLEM == "forecasting" else FEATURES
+    frame[numeric] = frame[numeric].replace([np.inf, -np.inf], np.nan)
+    return frame.dropna(subset=numeric).sort_values(["series_id", "event_time"])
+
+
+def build_features(raw: pd.DataFrame) -> pd.DataFrame:
+    """Build origin-time lags and direct horizon labels without using future features."""
+    frame = curate(raw)
+    if PROBLEM != "forecasting":
+        return frame.assign(label_time=frame.event_time)
+    if frame.duplicated(["series_id", "event_time"]).any():
+        raise ValueError("One observation per series and timestamp is required")
+    differences = frame.groupby("series_id").event_time.diff().dropna()
+    if not differences.eq(pd.Timedelta(hours=1)).all():
+        raise ValueError("Forecasting requires regular hourly series; resample explicitly")
+    grouped = frame.groupby("series_id")
+    frame["lag_1"] = grouped.target.shift(1)
+    frame["lag_24"] = grouped.target.shift(LOOKBACK)
+    frame["label_time"] = frame.event_time + pd.Timedelta(hours=HORIZON)
+    future_hour = frame.label_time.dt.hour
+    frame["hour_sin"] = np.sin(future_hour * 2 * np.pi / 24)
+    frame["hour_cos"] = np.cos(future_hour * 2 * np.pi / 24)
+    frame["target"] = grouped.target.shift(-HORIZON)
+    return frame.dropna(subset=FEATURES).reset_index(drop=True)

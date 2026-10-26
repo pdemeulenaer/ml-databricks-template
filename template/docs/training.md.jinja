@@ -1,0 +1,42 @@
+# Training and evaluation
+
+{% if problem_type == 'forecasting' %}
+This example uses chronological 60/20/20 origin cutoffs shared across series. Rows whose
+labels cross the next origin cutoff are purged; `gap_hours` can make the purge stricter.
+The model predicts a direct three-hour horizon with one- and 24-hour lags and known
+future hour-of-day encodings. It requires regular hourly data and fails gaps or duplicate
+series timestamps. Forecasting never uses a random split.
+{% elif problem_type == 'classification' %}
+This independent-observation classification example uses seeded, stratified 60/20/20
+partitions. Both split stages preserve class proportions. Choose a grouped or temporal
+strategy when repeated entities or time-dependent outcomes introduce leakage risks.
+{% else %}
+This independent-observation regression example uses seeded random 60/20/20 partitions.
+Choose a grouped or temporal strategy when repeated entities or time-dependent outcomes
+introduce leakage risks.
+{% endif %}
+
+`--tune` compares depths on validation only. The default fits one depth. After selection,
+refit on train plus validation and evaluate test once. Neither model selection nor
+baseline computation uses test data. Tests verify disjoint partitions, chronological
+label boundaries and invariance of past features to changed future values.
+
+Remote MLflow runs record parameters, final test metrics, signatures, input examples,
+input dataset digest, source reference, revision, environment versions and the baseline.
+Models register in `databricks-uc` with three-part names. Training sets `candidate` only.
+QA and PROD inference require a numeric model version supplied at deployment.
+
+## Promotion
+
+For a shared metastore, an authorized release operator can call MLflow's
+`MlflowClient.copy_model_version` with `models:/<source catalog>.<schema>.model/<version>`
+and the destination model name. Evaluate the copied artifact on representative QA data,
+record both source and destination versions, and deploy the exact approved PROD version.
+Do not retrain during deployment or resolve a moving alias in QA/PROD. With separate
+metastores, export and verify the immutable artifact, signature and dependencies, then
+register it at the destination. This release process needs organization-specific access
+and is deliberately not an automatic cross-workspace credential flow.
+
+The registered model also carries `extra_files/baseline.json` and `provenance.json`.
+These travel with an approved artifact copy, so monitoring does not need credentials
+for the source workspace training run.

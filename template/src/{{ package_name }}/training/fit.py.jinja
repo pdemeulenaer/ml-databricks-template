@@ -1,0 +1,48 @@
+"""Select hyperparameters on validation; evaluate the final model on test once."""
+
+from dataclasses import dataclass
+
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+
+from {{ package_name }}.config import FEATURES, PROBLEM
+from {{ package_name }}.evaluation.metrics import evaluate
+from {{ package_name }}.splits.strategies import chronological_split, random_split
+
+
+@dataclass
+class TrainingResult:
+    """A fitted model, held-out metrics and baseline from fitting data."""
+
+    model: object
+    metrics: dict[str, float]
+    parameters: dict
+    baseline: dict
+    test: pd.DataFrame
+
+
+def train(frame: pd.DataFrame, *, tune: bool = False) -> TrainingResult:
+    """Fit a small baseline. Scaling to large datasets needs a distributed trainer."""
+    labeled = frame.dropna(subset=["target"])
+    split = (
+        chronological_split(labeled)
+        if PROBLEM == "forecasting"
+        else random_split(labeled, classification=PROBLEM == "classification")
+    )
+    estimator = RandomForestClassifier if PROBLEM == "classification" else RandomForestRegressor
+    depths = (3, 6, None) if tune else (6,)
+    candidates = []
+    for depth in depths:
+        model = estimator(n_estimators=40, max_depth=depth, random_state=42, n_jobs=1)
+        model.fit(split.train[FEATURES], split.train.target)
+        metrics = evaluate(split.validation.target, model.predict(split.validation[FEATURES]))
+        score = metrics.get("accuracy", -metrics.get("rmse", 0))
+        candidates.append((score, model))
+    _, best = max(candidates, key=lambda item: item[0])
+    fitting = pd.concat([split.train, split.validation])
+    best.fit(fitting[FEATURES], fitting.target)
+    metrics = evaluate(split.test.target, best.predict(split.test[FEATURES]))
+    baseline = {
+        c: {"mean": float(fitting[c].mean()), "std": float(fitting[c].std())} for c in FEATURES
+    }
+    return TrainingResult(best, metrics, best.get_params(), baseline, split.test)

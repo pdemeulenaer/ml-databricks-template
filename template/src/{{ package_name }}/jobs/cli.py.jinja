@@ -1,0 +1,33 @@
+"""Console commands; remote imports happen only on an explicit remote command."""
+
+import argparse
+from pathlib import Path
+
+
+def main():
+    """Dispatch local demo or a Databricks wheel task."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("command", choices=["demo", "seed", "train", "infer", "monitor", "smoke"])
+    parser.add_argument("--output", type=Path, default=Path("artifacts/demo"))
+    parser.add_argument("--tune", action="store_true")
+    parser.add_argument("--catalog")
+    parser.add_argument("--namespace", default="{{ package_name }}")
+    parser.add_argument("--experiment")
+    parser.add_argument("--model-version", default="candidate")
+    parser.add_argument("--source-revision", default="unknown")
+    parser.add_argument("--max-rows", type=int, default=10000)
+    args = parser.parse_args()
+    if args.command == "demo":
+        from {{ package_name }}.jobs.local import demo
+
+        print(demo(args.output, tune=args.tune))
+    else:
+        if not args.catalog:
+            parser.error("--catalog is required for remote commands")
+        from {{ package_name }}.jobs.remote import execute
+
+        execute(args)
+
+
+if __name__ == "__main__":
+    main()

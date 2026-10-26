@@ -1,0 +1,15 @@
+# Inference
+
+Batch inference resolves the DEV `candidate` alias once per run or uses the supplied
+numeric version. It scores only Gold rows without labels. Output includes observation
+ID, series ID, origin time, label time, numeric inputs, prediction time, model name,
+model version and source table. Labels are joined later by stable ID and label time.
+
+The example appends prediction history. Retried runs can produce repeat predictions;
+use `(id, label_time, model_version, predicted_at)` for event identity. Implement an
+idempotent MERGE using a batch ID when business semantics require one prediction per
+batch. The adapter intentionally bounds driver memory for this small reference.
+
+Online serving and a REST API are extensions, with no extra scaffolding in the default
+project. Before adding serving, use current AI Gateway-enabled inference tables and
+verify cloud/region support; the legacy inference-table configuration is deprecated.

@@ -1,0 +1,65 @@
+name: Deploy reviewed QA or PROD release
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        type: choice
+        options: [qa, prod]
+        required: true
+      model_version:
+        description: Approved immutable version in the destination catalog
+        required: true
+        type: string
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: release-${{ inputs.target }}
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    # Configure required reviewers and allowed deployment branches in GitHub settings.
+    environment: ${{ inputs.target }}
+    runs-on: ubuntu-latest
+    env:
+      TARGET: ${{ inputs.target }}
+      DATABRICKS_AUTH_TYPE: github-oidc
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_QA_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_PROD_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_WORKSPACE_HOST: ${{ vars.DATABRICKS_HOST }}
+      BUNDLE_VAR_catalog: ${{ vars.CATALOG }}
+      BUNDLE_VAR_namespace: ${{ vars.DATA_NAMESPACE }}
+      BUNDLE_VAR_run_as: ${{ vars.RUN_AS }}
+      BUNDLE_VAR_deploy_root: ${{ vars.DEPLOY_ROOT }}
+      BUNDLE_VAR_model_version: ${{ inputs.model_version }}
+      BUNDLE_VAR_source_revision: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.13"
+      - uses: databricks/setup-cli@v0.292.0
+        with:
+          version: "1.22.1"
+      - name: Check immutable release inputs
+        run: |
+          [[ "$BUNDLE_VAR_model_version" =~ ^[1-9][0-9]*$ ]]
+          test -n "$BUNDLE_VAR_run_as"
+          test -n "$BUNDLE_VAR_deploy_root"
+      - run: uv sync --locked --group dev --group docs
+      - name: Configure explicit CI profile
+        run: |
+          printf '[ci]\nhost = %s\nclient_id = %s\nauth_type = github-oidc\n' "$DATABRICKS_HOST" "$DATABRICKS_CLIENT_ID" > "$RUNNER_TEMP/databrickscfg"
+          echo "DATABRICKS_CONFIG_FILE=$RUNNER_TEMP/databrickscfg" >> "$GITHUB_ENV"
+      - run: make test lint security docs-build
+      - run: make bundle-validate bundle-deploy PROFILE=ci TARGET="$TARGET"
+      - name: QA smoke with representative input and promoted artifact
+        if: inputs.target == 'qa'
+        run: |
+          databricks bundle run data_pipeline --target qa --profile ci
+          databricks bundle run inference --target qa --profile ci
+          databricks bundle run monitoring --target qa --profile ci
+          databricks bundle run smoke --target qa --profile ci

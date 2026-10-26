@@ -1,0 +1,83 @@
+import numpy as np
+import pandas as pd
+import pytest
+
+from {{ package_name }}.config import FEATURES, PROBLEM
+from {{ package_name }}.data.synthetic import generate
+from {{ package_name }}.evaluation.metrics import evaluate
+from {{ package_name }}.features.build import build_features, curate
+from {{ package_name }}.inference.batch import score
+from {{ package_name }}.monitoring.report import summarize
+from {{ package_name }}.splits.strategies import chronological_split, random_split
+from {{ package_name }}.training.fit import train
+
+
+def test_contract_and_invalid_records():
+    raw = generate()
+    bad = raw.copy()
+    bad.loc[1, "id"] = bad.loc[0, "id"]
+    with pytest.raises(ValueError, match="unique"):
+        curate(bad)
+    features = build_features(raw)
+    assert np.isfinite(features[FEATURES].to_numpy()).all()
+    assert features.id.is_unique
+
+
+def test_split_has_no_overlap_and_respects_time():
+    frame = build_features(generate()).dropna(subset=["target"])
+    split = (
+        chronological_split(frame, gap_hours=2)
+        if PROBLEM == "forecasting"
+        else random_split(frame, classification=PROBLEM == "classification")
+    )
+    assert set(split.train.id).isdisjoint(split.test.id)
+    assert set(split.train.id).isdisjoint(split.validation.id)
+    assert set(split.validation.id).isdisjoint(split.test.id)
+    if PROBLEM == "forecasting":
+        assert split.train.label_time.max() < split.validation.event_time.min() - pd.Timedelta(
+            hours=2
+        )
+        assert split.validation.label_time.max() < split.test.event_time.min() - pd.Timedelta(
+            hours=2
+        )
+        assert split.test.series_id.nunique() == 2
+    elif PROBLEM == "classification":
+        for part in (split.train, split.validation, split.test):
+            assert abs(part.target.mean() - frame.target.mean()) < 0.03
+
+
+def test_train_infer_monitor_with_delayed_labels():
+    frame = build_features(generate())
+    result = train(frame, tune=True)
+    predictions = score(
+        result.model, result.test, model_name="test", model_version="7", data_reference="synthetic"
+    )
+    assert "target" not in predictions
+    assert predictions.model_version.eq("7").all()
+    report = summarize(predictions, result.baseline)
+    assert "accuracy" not in report and "rmse" not in report
+    observed = summarize(predictions, result.baseline, result.test[["id", "target"]])
+    assert observed["observed_label_count"] == len(predictions)
+    assert observed.get("accuracy", 1) > 0.8
+    shifted = predictions.copy()
+    shifted[FEATURES] += 100
+    assert summarize(shifted, result.baseline)["breach"]
+
+
+def test_metrics_require_observed_outcomes():
+    with pytest.raises(ValueError, match="ground truth"):
+        evaluate(np.array([np.nan]), np.array([1.0]))
+
+
+def test_future_values_cannot_change_past_features():
+    if PROBLEM != "forecasting":
+        return
+    raw = generate()
+    original = build_features(raw)
+    cutoff = raw.event_time.min() + pd.Timedelta(hours=350)
+    altered = raw.copy()
+    altered.loc[altered.event_time > cutoff, "target"] += 1000
+    changed = build_features(altered)
+    left = original[original.event_time <= cutoff][["id", *FEATURES]].reset_index(drop=True)
+    right = changed[changed.event_time <= cutoff][["id", *FEATURES]].reset_index(drop=True)
+    pd.testing.assert_frame_equal(left, right)

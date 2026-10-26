@@ -1,0 +1,46 @@
+"""A reproducible, credential-free demonstration of the model workflow."""
+
+import json
+from pathlib import Path
+
+import mlflow
+import mlflow.sklearn
+
+from {{ package_name }}.config import PROBLEM
+from {{ package_name }}.data.synthetic import generate
+from {{ package_name }}.features.build import build_features
+from {{ package_name }}.inference.batch import score
+from {{ package_name }}.monitoring.report import summarize, write_report
+from {{ package_name }}.training.artifacts import load_baseline, log_model
+from {{ package_name }}.training.fit import train
+
+
+def demo(output: Path, *, tune: bool = False) -> dict:
+    """Train, log, score untouched test rows and demonstrate delayed outcome joins."""
+    output.mkdir(parents=True, exist_ok=True)
+    mlflow.set_tracking_uri(f"sqlite:///{(output / 'mlflow.db').resolve()}")
+    mlflow.set_experiment("local-demo")
+    features = build_features(generate())
+    result = train(features, tune=tune)
+    with mlflow.start_run() as run:
+        mlflow.log_params(result.parameters)
+        mlflow.log_metrics(result.metrics)
+        mlflow.set_tags({"problem_type": PROBLEM, "data_reference": "synthetic:seed=42"})
+        mlflow.log_dict(result.baseline, "baseline.json")
+        logged = log_model(result, source_revision="local-synthetic")
+        reloaded = mlflow.sklearn.load_model(logged.model_uri)
+        predictions = score(
+            reloaded,
+            result.test,
+            model_name="local-demo",
+            model_version=run.info.run_id,
+            data_reference="synthetic:seed=42",
+        )
+        predictions.to_csv(output / "predictions.csv", index=False)
+        baseline = load_baseline(logged.model_uri)
+        unlabeled = summarize(predictions, baseline)
+        write_report(unlabeled, output / "monitoring.html")
+        observed = summarize(predictions, baseline, result.test[["id", "target"]])
+        write_report(observed, output / "monitoring-with-labels.html")
+    (output / "metrics.json").write_text(json.dumps(result.metrics, indent=2))
+    return result.metrics

@@ -1,0 +1,92 @@
+# Operations and deployment
+
+## Local setup
+
+Use Python 3.12 and `uv`. Run `uv lock` once after generation, commit `uv.lock`,
+then use `uv sync --locked --group dev --group docs`. Run `make test lint security
+docs-build`, `uv run pre-commit install`, and `make demo`. The local lockfile controls
+local Python. Bundle job environments separately install the built wheel and exact
+runtime dependencies exported by `scripts/export_runtime.py` from the lockfile.
+The serverless pipeline installs that same wheel and dependencies. Spark is supplied
+by Databricks, not installed in the local environment. Environment version 4 is a
+configurable documented baseline; confirm support in your workspace.
+
+## Workspace setup (requires explicit authorization)
+
+Choose the CLI profile yourself; `make` refuses an empty PROFILE. Do not inspect or use
+credentials without authorization. Catalogs must already exist. Have the platform team
+grant schema/volume creation, pipeline creation, model creation/version and data access
+to the deploying/run-as service principal. Configure catalog-workspace bindings for PROD.
+
+Set bundle variables through environment variables or an uncommitted
+`.databricks/bundle/<target>/variable-overrides.json`:
+
+```json
+{"catalog": "chosen_dev_catalog", "namespace": "my_project_alice"}
+```
+
+Set the target workspace URL using the environment variable named in `databricks.yml`.
+For QA and PROD also set `BUNDLE_VAR_run_as` to the service principal application ID,
+`BUNDLE_VAR_deploy_root` to a restricted deployment folder, and
+`BUNDLE_VAR_model_version` to the approved numeric destination version. Use a different
+namespace per DEV developer: development mode does not isolate Unity Catalog tables.
+
+```bash
+make bundle-validate PROFILE=your-profile TARGET=dev
+make bundle-deploy PROFILE=your-profile TARGET=dev
+# Creates synthetic input files in the chosen DEV namespace; run once only.
+databricks bundle run seed_dev --target dev --profile your-profile
+make integration-dev PROFILE=your-profile
+```
+
+Integration runs the deployed data pipeline, training, batch inference, monitoring and
+remote assertions. This changes UC data and registers a model. Do not point it at QA/PROD.
+The deploy builds the wheel and resolves remote dependencies first. No remote resources
+are necessary for local tests, linting or documentation. `scripts/check_bundle.py` is an
+offline shape/CLI-schema check; it does not replace authenticated `bundle validate`.
+
+## CI and releases
+
+Local CI runs on pull requests without secrets. Secret scanning uses the Gitleaks CLI
+without a paid action. DEV integration is a separate manual workflow in a protected
+`dev` Environment; it deploys the reviewed default-branch commit and runs integration
+against pre-existing DEV input. QA and PROD deployments use a manual release workflow
+restricted to the default branch and a protected `qa` or `prod` Environment. Set required
+reviewers and deployment branch restrictions on `prod` in GitHub settings: YAML alone
+cannot enforce human approval. Until protections are configured, do not enable releases.
+
+Environment variables: `DATABRICKS_HOST`, `DATABRICKS_CLIENT_ID`, `CATALOG`, `DATA_NAMESPACE`,
+`RUN_AS`, `DEPLOY_ROOT`, `MODEL_VERSION`; use OAuth workload identity federation with the
+GitHub Environment subject and `id-token: write`. No long-lived token is required.
+QA deployment runs the data pipeline and then inference/monitoring/smoke against an
+already promoted numeric model version and representative QA input. It does not retrain.
+QA data refresh defaults to 02:00 UTC daily with an overridable Quartz cron expression.
+Inference defaults to 03:00 UTC and monitoring to 04:00 UTC. Schedules are independent;
+for larger workloads replace these timing assumptions with task dependencies. PROD schedules stay paused until deliberately enabled.
+Set job failure recipients through the bundle notification variable.
+
+## Verified syntax and remaining validation
+
+`template-basis.yml` is the template's provenance snapshot: review date, Databricks
+skill pack version, each reviewed `SKILL.md` version/hash, tested CLI and validation
+scope. A null skill version means the entrypoint does not declare a version; its
+SHA-256 still identifies the reviewed bytes. Hashes cover entrypoints, not their
+referenced files or the entire extension package.
+
+The snapshot updates with `copier update`. It describes upstream template verification,
+not verification of this project's changes or workspace. Keep project-specific CLI
+upgrades, validation dates and workspace results in this operations guide. The source
+template version is recorded separately in `.copier-answers.yml` for Git-based sources.
+An installed extension update does not modify the snapshot or authorize restructuring.
+
+The resource layout follows the current `default-python` starter conventions; local
+scaffolding did not invoke an authenticated starter or use a workspace profile.
+Local test results do not imply that DEV deployment, serverless environments,
+workspace permissions or data profiling have been exercised. Complete DEV integration
+before tagging the first remotely verified template release.
+
+References: [bundle templates](https://docs.databricks.com/aws/en/dev-tools/bundles/templates),
+[serverless bundle examples](https://docs.databricks.com/aws/en/dev-tools/bundles/examples),
+[Unity Catalog models](https://docs.databricks.com/aws/en/machine-learning/manage-model-lifecycle/),
+[Python pipelines](https://docs.databricks.com/aws/en/ldp/developer/python-dev),
+[serving monitoring](https://docs.databricks.com/aws/en/machine-learning/model-serving/monitor-diagnose-endpoints).

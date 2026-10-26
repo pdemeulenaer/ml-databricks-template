@@ -1,0 +1,146 @@
+resources:
+  jobs:
+    data_pipeline:
+      name: ${bundle.name}-data
+      performance_target: STANDARD
+      tags: &tags
+        project: "{{ project_name }}"
+        aidevkit_project: ai-dev-kit
+      email_notifications: &notifications
+        on_failure: ${var.notification_emails}
+      schedule:
+        quartz_cron_expression: ${var.data_cron}
+        timezone_id: UTC
+        pause_status: ${var.schedule_pause}
+      tasks:
+        - task_key: refresh
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.features.id}
+    training:
+      name: ${bundle.name}-training
+      performance_target: STANDARD
+      max_concurrent_runs: 1
+      tags: *tags
+      email_notifications: *notifications
+      tasks:
+        - task_key: train
+          timeout_seconds: 3600
+          environment_key: runtime
+          python_wheel_task:
+            package_name: {{ project_name }}
+            entry_point: ml-workflow
+            parameters:
+              - train
+              - --catalog
+              - ${var.catalog}
+              - --namespace
+              - ${var.namespace}
+              - --experiment
+              - ${resources.experiments.training.name}
+              - --model-version
+              - ${var.model_version}
+              - --source-revision
+              - ${var.source_revision}
+      environments:
+        - environment_key: runtime
+          spec:
+            environment_version: ${var.runtime_version}
+            dependencies: [../dist/*.whl]
+    inference:
+      name: ${bundle.name}-inference
+      schedule:
+        quartz_cron_expression: ${var.inference_cron}
+        timezone_id: UTC
+        pause_status: ${var.schedule_pause}
+      performance_target: STANDARD
+      max_concurrent_runs: 1
+      tags: *tags
+      email_notifications: *notifications
+      tasks:
+        - task_key: infer
+          timeout_seconds: 3600
+          environment_key: runtime
+          python_wheel_task:
+            package_name: {{ project_name }}
+            entry_point: ml-workflow
+            parameters:
+              - infer
+              - --catalog
+              - ${var.catalog}
+              - --namespace
+              - ${var.namespace}
+              - --experiment
+              - ${resources.experiments.training.name}
+              - --model-version
+              - ${var.model_version}
+              - --source-revision
+              - ${var.source_revision}
+      environments:
+        - environment_key: runtime
+          spec:
+            environment_version: ${var.runtime_version}
+            dependencies: [../dist/*.whl]
+    monitoring:
+      name: ${bundle.name}-monitoring
+      performance_target: STANDARD
+      max_concurrent_runs: 1
+      tags: *tags
+      email_notifications: *notifications
+      schedule:
+        quartz_cron_expression: ${var.monitor_cron}
+        timezone_id: UTC
+        pause_status: ${var.schedule_pause}
+      tasks:
+        - task_key: monitor
+          timeout_seconds: 3600
+          environment_key: runtime
+          python_wheel_task:
+            package_name: {{ project_name }}
+            entry_point: ml-workflow
+            parameters:
+              - monitor
+              - --catalog
+              - ${var.catalog}
+              - --namespace
+              - ${var.namespace}
+              - --experiment
+              - ${resources.experiments.training.name}
+              - --model-version
+              - ${var.model_version}
+              - --source-revision
+              - ${var.source_revision}
+      environments:
+        - environment_key: runtime
+          spec:
+            environment_version: ${var.runtime_version}
+            dependencies: [../dist/*.whl]
+    smoke:
+      name: ${bundle.name}-smoke
+      performance_target: STANDARD
+      max_concurrent_runs: 1
+      tags: *tags
+      email_notifications: *notifications
+      tasks:
+        - task_key: smoke
+          timeout_seconds: 3600
+          environment_key: runtime
+          python_wheel_task:
+            package_name: {{ project_name }}
+            entry_point: ml-workflow
+            parameters:
+              - smoke
+              - --catalog
+              - ${var.catalog}
+              - --namespace
+              - ${var.namespace}
+              - --experiment
+              - ${resources.experiments.training.name}
+              - --model-version
+              - ${var.model_version}
+              - --source-revision
+              - ${var.source_revision}
+      environments:
+        - environment_key: runtime
+          spec:
+            environment_version: ${var.runtime_version}
+            dependencies: [../dist/*.whl]

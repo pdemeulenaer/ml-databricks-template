@@ -1,0 +1,132 @@
+# Declarative Automation Bundles. Set workspace environment variables before validation.
+bundle:
+  name: {{ package_name }}
+  databricks_cli_version: ">=1.22.1"
+
+include:
+  - resources/*.yml
+
+artifacts:
+  wheel:
+    type: whl
+    build: uv build && uv run python scripts/export_runtime.py
+    path: .
+
+sync:
+  include: [dist/*.whl]
+  exclude: [tests/**, docs/**, site/**, artifacts/**]
+
+variables:
+  catalog:
+    description: Existing environment catalog; explicitly supplied by the operator
+  namespace:
+    description: Unique project/developer schema prefix (lowercase SQL identifier)
+  model_version:
+    description: Immutable approved model version for QA/PROD
+    default: candidate
+  source_revision:
+    default: unknown
+  run_as:
+    description: Application ID of the QA/PROD run-as service principal
+    default: ""
+  deploy_root:
+    description: Restricted deployment root for QA/PROD
+    default: /Workspace/Projects/${bundle.name}/${bundle.target}
+  runtime_version:
+    default: "4"
+  schedule_pause:
+    default: PAUSED
+  data_cron:
+    default: "0 0 2 * * ?"
+  inference_cron:
+    default: "0 0 3 * * ?"
+  monitor_cron:
+    default: "0 0 4 * * ?"
+  notification_emails:
+    type: complex
+    default: []
+
+resources:
+  experiments:
+    training:
+      name: ${workspace.root_path}/training
+
+# No target is default: every command must choose a target and profile.
+targets:
+  dev:
+    mode: development
+    workspace:
+{% if workspace_topology == 'single_workspace' %}
+      host: ${env.DATABRICKS_WORKSPACE_HOST}
+{% else %}
+      host: ${env.DATABRICKS_DEV_HOST}
+{% endif %}
+    resources:
+      jobs:
+        seed_dev:
+          name: ${bundle.name}-seed-dev
+          performance_target: STANDARD
+          tags: {project: "{{ project_name }}", aidevkit_project: ai-dev-kit}
+          tasks:
+            - task_key: seed
+              environment_key: runtime
+              python_wheel_task:
+                package_name: {{ project_name }}
+                entry_point: ml-workflow
+                parameters: [seed, --catalog, "${var.catalog}", --namespace, "${var.namespace}"]
+          environments:
+            - environment_key: runtime
+              spec:
+                environment_version: ${var.runtime_version}
+                dependencies: [./dist/*.whl]
+        integration_dev:
+          name: ${bundle.name}-integration-dev
+          performance_target: STANDARD
+          tags: {project: "{{ project_name }}", aidevkit_project: ai-dev-kit}
+          tasks:
+            - task_key: data
+              run_job_task:
+                job_id: ${resources.jobs.data_pipeline.id}
+            - task_key: train
+              depends_on: [{task_key: data}]
+              run_job_task:
+                job_id: ${resources.jobs.training.id}
+            - task_key: infer
+              depends_on: [{task_key: train}]
+              run_job_task:
+                job_id: ${resources.jobs.inference.id}
+            - task_key: monitor
+              depends_on: [{task_key: infer}]
+              run_job_task:
+                job_id: ${resources.jobs.monitoring.id}
+            - task_key: smoke
+              depends_on: [{task_key: monitor}]
+              run_job_task:
+                job_id: ${resources.jobs.smoke.id}
+  qa:
+    mode: production
+    workspace:
+{% if workspace_topology == 'single_workspace' %}
+      host: ${env.DATABRICKS_WORKSPACE_HOST}
+{% else %}
+      host: ${env.DATABRICKS_QA_HOST}
+{% endif %}
+      root_path: ${var.deploy_root}
+    run_as:
+      service_principal_name: ${var.run_as}
+    variables:
+      model_version: ""
+      schedule_pause: UNPAUSED
+  prod:
+    mode: production
+    workspace:
+{% if workspace_topology == 'single_workspace' %}
+      host: ${env.DATABRICKS_WORKSPACE_HOST}
+{% else %}
+      host: ${env.DATABRICKS_PROD_HOST}
+{% endif %}
+      root_path: ${var.deploy_root}
+    run_as:
+      service_principal_name: ${var.run_as}
+    variables:
+      model_version: ""

@@ -1,0 +1,16 @@
+# Data and assumptions
+
+The local dataset is deterministic (seed 42), numeric and under 10,000 rows. IDs are
+stable and unique. Timestamps represent hourly observations. Missing IDs fail;
+nonfinite features are dropped. Missing future labels are permitted for scoring.
+Remote seed input must be used only once in an isolated DEV namespace.
+
+For classification/regression the observations are independent. Use a group split for
+repeated entities and a temporal split for time-dependent outcomes in a real project.
+Synthetic accuracy is not evidence of real-world model performance.
+
+Remote training logs the input dataframe's MLflow dataset digest, source table,
+row count, source revision and environment versions. The digest identifies the
+collected snapshot; archive source Delta versions separately for long-term replay.
+Driver collection fails above `--max-rows` (10,000 by default). Replace the trainer
+and scoring adapter for larger datasets; the Lakeflow pipeline remains distributed.

@@ -1,0 +1,153 @@
+"""Databricks adapter. Imports Spark only when explicitly executed remotely."""
+
+import importlib.metadata
+import json
+import tempfile
+from datetime import UTC, datetime
+from pathlib import Path
+
+import mlflow
+import mlflow.sklearn
+import pandas as pd
+from mlflow.tracking import MlflowClient
+
+from {{ package_name }}.config import FEATURES, PROBLEM, Settings
+from {{ package_name }}.inference.batch import score
+from {{ package_name }}.monitoring.report import summarize, write_report
+from {{ package_name }}.training.artifacts import load_baseline, log_model
+from {{ package_name }}.training.fit import train
+
+
+def collect_bounded(table, max_rows):
+    """Fail above a declared driver memory boundary; never silently truncate training."""
+    frame = table.limit(max_rows + 1).toPandas()
+    if len(frame) > max_rows:
+        raise ValueError("Data exceeds the example trainer limit; implement distributed training")
+    return frame
+
+
+def execute(args):
+    """Run one bundle wheel task against pre-provisioned Unity Catalog schemas."""
+    from pyspark.sql import SparkSession
+    from pyspark.sql import functions as F
+
+    spark = SparkSession.builder.getOrCreate()
+    cfg = Settings(args.catalog, args.namespace)
+    mlflow.set_tracking_uri("databricks")
+    mlflow.set_registry_uri("databricks-uc")
+    if args.experiment:
+        mlflow.set_experiment(args.experiment)
+    client = MlflowClient()
+    features_name = cfg.table("gold", "features")
+    predictions_name = cfg.table("predictions", "batch")
+    if args.command == "train":
+        features = collect_bounded(spark.table(features_name), args.max_rows)
+        result = train(features, tune=args.tune)
+        with mlflow.start_run() as run:
+            mlflow.log_params(result.parameters)
+            mlflow.log_metrics(result.metrics)
+            mlflow.set_tags(
+                {
+                    "source_revision": args.source_revision,
+                    "data_reference": features_name,
+                    "problem_type": PROBLEM,
+                    "row_count": len(features),
+                }
+            )
+            mlflow.log_input(
+                mlflow.data.from_pandas(features[FEATURES + ["target"]], source=features_name),
+                context="training",
+            )
+            mlflow.log_dict(result.baseline, "baseline.json")
+            mlflow.log_dict(
+                {
+                    name: importlib.metadata.version(name)
+                    for name in ("mlflow", "pandas", "numpy", "scikit-learn")
+                },
+                "environment.json",
+            )
+            info = log_model(result, source_revision=args.source_revision)
+            version = mlflow.register_model(info.model_uri, cfg.model_name)
+            client.set_model_version_tag(
+                cfg.model_name, version.version, "source_revision", args.source_revision
+            )
+            client.set_registered_model_alias(cfg.model_name, "candidate", version.version)
+            print(json.dumps({"model_version": version.version, "run_id": run.info.run_id}))
+    elif args.command == "infer":
+        requested = args.model_version
+        if requested.isdecimal():
+            version = client.get_model_version(cfg.model_name, requested)
+        elif requested == "candidate":
+            version = client.get_model_version_by_alias(cfg.model_name, requested)
+        else:
+            raise ValueError("Set model_version to an immutable version, or candidate for DEV")
+        model = mlflow.sklearn.load_model(f"models:/{cfg.model_name}/{version.version}")
+        frame = collect_bounded(
+            spark.table(features_name).where(F.col("target").isNull()), args.max_rows
+        )
+        predictions = score(
+            model,
+            frame,
+            model_name=cfg.model_name,
+            model_version=version.version,
+            data_reference=features_name,
+        )
+        # Timestamp normalization avoids timezone discrepancies at the Spark boundary.
+        predictions["predicted_at"] = pd.to_datetime(predictions.predicted_at).dt.tz_localize(None)
+        spark.createDataFrame(predictions).write.mode("append").saveAsTable(predictions_name)
+    elif args.command == "monitor":
+        recent = spark.table(predictions_name).where(
+            F.col("predicted_at") >= F.current_timestamp() - F.expr("INTERVAL 1 DAY")
+        )
+        predictions = collect_bounded(recent, args.max_rows)
+        reports = []
+        for model_version, rows in predictions.groupby("model_version"):
+            baseline = load_baseline(f"models:/{cfg.model_name}/{model_version}")
+            report = summarize(rows, baseline)
+            report["model_version"] = str(model_version)
+            reports.append(report)
+        if not reports:
+            reports = [{"row_count": 0, "breach": True, "model_version": "none"}]
+        for report in reports:
+            payload = [
+                (
+                    datetime.now(UTC).replace(tzinfo=None),
+                    report["model_version"],
+                    bool(report["breach"]),
+                    json.dumps(report),
+                )
+            ]
+            spark.createDataFrame(
+                payload,
+                "monitored_at timestamp, model_version string, breach boolean, metrics_json string",
+            ).write.mode("append").saveAsTable(cfg.table("monitoring", "metrics"))
+            with tempfile.TemporaryDirectory() as directory, mlflow.start_run():
+                path = Path(directory) / "monitoring.html"
+                write_report(report, path)
+                mlflow.log_artifacts(directory, "monitoring")
+        if any(report["breach"] for report in reports):
+            raise RuntimeError("Monitoring threshold exceeded; inspect monitoring.metrics")
+    elif args.command == "smoke":
+        if spark.table(features_name).limit(1).count() == 0:
+            raise RuntimeError("No feature data")
+        rows = (
+            spark.table(predictions_name).orderBy(F.col("predicted_at").desc()).limit(1).collect()
+        )
+        if not rows or not rows[0].model_version:
+            raise RuntimeError("No versioned predictions")
+        if spark.table(cfg.table("monitoring", "metrics")).limit(1).count() == 0:
+            raise RuntimeError("No monitoring metrics")
+    elif args.command == "seed":
+        from {{ package_name }}.data.synthetic import generate
+
+        raw = generate()
+        raw["event_time"] = raw.event_time + (pd.Timestamp.now().floor("h") - raw.event_time.max())
+        if PROBLEM != "forecasting":
+            raw.loc[raw.index[-60:], "target"] = float("nan")
+        # Append a new uniquely named file. Run this once in DEV; never overwrite stream inputs.
+        path = f"/Volumes/{cfg.catalog}/{cfg.namespace}_landing/files/input"
+        seed = spark.createDataFrame(raw)
+        seed = seed.withColumn(
+            "target", F.when(F.isnan("target"), F.lit(None)).otherwise(F.col("target"))
+        )
+        seed.coalesce(1).write.mode("append").json(path)

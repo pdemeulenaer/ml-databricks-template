@@ -1,0 +1,29 @@
+resources:
+  schemas:
+    landing:
+      name: ${var.namespace}_landing
+      catalog_name: ${var.catalog}
+    bronze:
+      name: ${var.namespace}_bronze
+      catalog_name: ${var.catalog}
+    silver:
+      name: ${var.namespace}_silver
+      catalog_name: ${var.catalog}
+    gold:
+      name: ${var.namespace}_gold
+      catalog_name: ${var.catalog}
+    models:
+      name: ${var.namespace}_models
+      catalog_name: ${var.catalog}
+    predictions:
+      name: ${var.namespace}_predictions
+      catalog_name: ${var.catalog}
+    monitoring:
+      name: ${var.namespace}_monitoring
+      catalog_name: ${var.catalog}
+  volumes:
+    landing_files:
+      name: files
+      catalog_name: ${var.catalog}
+      schema_name: ${resources.schemas.landing.name}
+      volume_type: MANAGED
