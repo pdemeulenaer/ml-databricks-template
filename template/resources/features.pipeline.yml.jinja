@@ -3,7 +3,7 @@ resources:
     features:
       name: ${bundle.name}-features
       catalog: ${var.catalog}
-      schema: ${resources.schemas.gold.name}
+      schema: gold
       serverless: true
       continuous: false
       libraries:
@@ -14,7 +14,4 @@ resources:
         dependencies: [../dist/*.whl]
       configuration:
         project.catalog: ${var.catalog}
-        project.namespace: ${var.namespace}
-        project.bronze_schema: ${resources.schemas.bronze.name}
-        project.silver_schema: ${resources.schemas.silver.name}
         project.landing_volume: ${resources.volumes.landing_files.name}

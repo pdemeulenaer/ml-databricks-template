@@ -24,7 +24,14 @@ Use workspace-catalog bindings and intentional grants to restrict PROD access.
 A shared metastore permits approved cross-catalog model copies; different metastores
 need an artifact export/import process with provenance and checksum verification.
 
-Every catalog has project-prefixed schemas: `landing`, `bronze`, `silver`, `gold`,
-`models`, `predictions`, `monitoring`. The landing schema holds a governed volume,
-not a table of files. Prediction outputs are separate from Gold feature inputs.
+Each environment catalog uses the same four schemas: `lz`, `bronze`, `silver`,
+and `gold`. The `lz` schema contains the project-prefixed managed volume. Bronze,
+Silver and Gold tables, prediction history, monitoring metrics and the registered
+model use project-prefixed names; predictions, monitoring and models reside in Gold.
+Projects using a shared catalog must coordinate ownership, object names and grants.
 Bundle targets select deployment settings; grants and bindings enforce isolation.
+
+The bundle root `databricks.yml` declares variables and target settings. It includes
+`resources/*.yml`, where the pipeline, schemas, experiment and jobs are defined.
+The seed and integration jobs are defined under `targets.dev.resources` in their
+resource files, so they are available only in DEV.

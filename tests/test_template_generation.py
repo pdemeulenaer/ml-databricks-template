@@ -108,17 +108,34 @@ def test_architecture_matrix(tmp_path, bundle_schema, problem, topology, mode):
         "qa": "test_qa",
         "prod": "test_prod",
     }
-    assert root["variables"]["namespace"]["default"] == f"sample_{problem}_${{bundle.target}}"
+    assert "namespace" not in root["variables"]
     assert all("default" not in target for target in root["targets"].values())
-    assert "seed_dev" not in root["targets"]["prod"].get("resources", {}).get("jobs", {})
-    resources = yaml.safe_load((project / "resources/workflows.jobs.yml").read_text())["resources"]
-    assert set(resources["jobs"]) == {
-        "data_pipeline",
-        "training",
-        "inference",
-        "monitoring",
-        "smoke",
+    # Shared jobs and DEV-only jobs are separate resource files. The target-scoped
+    # definitions must not accidentally deploy integration utilities to QA/PROD.
+    assert "resources" not in root
+    assert all("resources" not in target for target in root["targets"].values())
+    resource_configs = {
+        path.name: yaml.safe_load(path.read_text()) for path in project.glob("resources/*.yml")
     }
+    jobs = {}
+    for config in resource_configs.values():
+        jobs.update(config.get("resources", {}).get("jobs", {}))
+        if "jobs" in config.get("targets", {}).get("dev", {}).get("resources", {}):
+            assert not ({"qa", "prod"} & set(config.get("targets", {})))
+    assert set(jobs) == {"data_pipeline", "training", "inference", "monitoring", "smoke"}
+    dev_jobs = {}
+    for config in resource_configs.values():
+        dev_jobs.update(
+            config.get("targets", {}).get("dev", {}).get("resources", {}).get("jobs", {})
+        )
+    assert set(dev_jobs) == {"seed_dev", "integration_dev"}
+    tasks = dev_jobs["integration_dev"]["tasks"]
+    assert [task["task_key"] for task in tasks] == ["data", "train", "infer", "monitor", "smoke"]
+    assert [task.get("depends_on") for task in tasks] == [
+        None,
+        *[[{"task_key": key}] for key in ("data", "train", "infer", "monitor")],
+    ]
+    assert dev_jobs["seed_dev"]["environments"][0]["spec"]["dependencies"] == ["../dist/*.whl"]
     for workflow in project.glob(".github/workflows/*.yml"):
         # BaseLoader preserves GitHub's YAML 1.2 'on' instead of interpreting it as boolean.
         parsed = yaml.load(workflow.read_text(), Loader=yaml.BaseLoader)
@@ -222,3 +239,42 @@ def test_copier_update_preserves_project_customization(tmp_path):
     answers = yaml.safe_load((destination / ".copier-answers.yml").read_text())
     assert answers["_commit"] == "v0.2.0"
     assert not list(destination.rglob("*.rej"))
+
+
+def test_mixed_catalog_choices_are_valid_bundle_configuration(tmp_path, bundle_schema):
+    project = tmp_path / "project"
+    copier.run_copy(
+        str(ROOT),
+        project,
+        data={
+            "dev_workspace_host": "https://dev.example.com",
+            "dev_catalog": "dev_catalog",
+            "dev_catalog_action": "create",
+            "qa_catalog": "qa_catalog",
+            "qa_catalog_action": "use_existing",
+            "qa_schemas_action": "create",
+            "prod_catalog": "prod_catalog",
+            "prod_catalog_action": "use_existing",
+            "prod_schemas_action": "use_existing",
+        },
+        defaults=True,
+        quiet=True,
+    )
+    for path in [project / "databricks.yml", *project.glob("resources/*.yml")]:
+        bundle_schema.validate(yaml.safe_load(path.read_text()))
+    storage = yaml.safe_load((project / "resources/storage.schemas.yml").read_text())
+    dev = storage["targets"]["dev"]["resources"]
+    qa = storage["targets"]["qa"]["resources"]
+    assert set(dev["schemas"]) == {"lz", "bronze", "silver", "gold"}
+    assert set(qa["schemas"]) == {"lz", "bronze", "silver", "gold"}
+    assert "catalogs" in dev and "catalogs" not in qa
+    assert "prod" not in storage["targets"]
+    assert dev["volumes"]["landing_files"]["schema_name"] == "${resources.schemas.lz.name}"
+    assert dev["pipelines"]["features"]["schema"] == "${resources.schemas.gold.name}"
+    # The CLI requires resource keys to be unique across resource types.
+    assert (
+        "training_experiment"
+        in yaml.safe_load((project / "resources/training.experiment.yml").read_text())["resources"][
+            "experiments"
+        ]
+    )

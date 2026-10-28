@@ -1,0 +1,8 @@
+resources:
+  volumes:
+    landing_files:
+      name: {{ package_name }}_files
+      catalog_name: ${var.catalog}
+      schema_name: lz
+      volume_type: MANAGED
+      lifecycle: {prevent_destroy: true}

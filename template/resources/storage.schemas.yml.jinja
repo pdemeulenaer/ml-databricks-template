@@ -1,29 +1,51 @@
-resources:
-  schemas:
-    landing:
-      name: ${var.namespace}_landing
-      catalog_name: ${var.catalog}
-    bronze:
-      name: ${var.namespace}_bronze
-      catalog_name: ${var.catalog}
-    silver:
-      name: ${var.namespace}_silver
-      catalog_name: ${var.catalog}
-    gold:
-      name: ${var.namespace}_gold
-      catalog_name: ${var.catalog}
-    models:
-      name: ${var.namespace}_models
-      catalog_name: ${var.catalog}
-    predictions:
-      name: ${var.namespace}_predictions
-      catalog_name: ${var.catalog}
-    monitoring:
-      name: ${var.namespace}_monitoring
-      catalog_name: ${var.catalog}
-  volumes:
-    landing_files:
-      name: files
-      catalog_name: ${var.catalog}
-      schema_name: ${resources.schemas.landing.name}
-      volume_type: MANAGED
+# The catalog and schema resources are target-scoped. Existing resources are referenced
+# by name without taking ownership; managed ones are created on deployment.
+{% if dev_catalog_action == 'create' or dev_schemas_action == 'create' or qa_catalog_action == 'create' or qa_schemas_action == 'create' or prod_catalog_action == 'create' or prod_schemas_action == 'create' %}
+targets:
+{% for environment in ['dev', 'qa', 'prod'] %}
+{% set catalog_action = _copier_answers[environment ~ '_catalog_action'] %}
+{% set schemas_action = 'create' if catalog_action == 'create' else _copier_answers.get(environment ~ '_schemas_action', 'use_existing') %}
+{% set storage_root = _copier_answers.get(environment ~ '_catalog_storage_root', '') %}
+{% if catalog_action == 'create' or schemas_action == 'create' %}
+  {{ environment }}:
+    resources:
+{% if catalog_action == 'create' %}
+      catalogs:
+        environment_catalog:
+          name: ${var.catalog}
+          lifecycle: {prevent_destroy: true}
+{% if storage_root %}
+          storage_root: {{ storage_root | to_json }}
+{% endif %}
+{% endif %}
+{% if schemas_action == 'create' %}
+      schemas:
+{% for schema in ['lz', 'bronze', 'silver', 'gold'] %}
+        {{ schema }}:
+          name: {{ schema }}
+{% if catalog_action == 'create' %}
+          catalog_name: ${resources.catalogs.environment_catalog.name}
+{% else %}
+          catalog_name: ${var.catalog}
+{% endif %}
+          lifecycle: {prevent_destroy: true}
+{% endfor %}
+      volumes:
+        landing_files:
+          name: {{ package_name }}_files
+          catalog_name: ${var.catalog}
+          schema_name: ${resources.schemas.lz.name}
+          volume_type: MANAGED
+          lifecycle: {prevent_destroy: true}
+      pipelines:
+        features:
+          schema: ${resources.schemas.gold.name}
+          configuration:
+            project.bronze_schema: ${resources.schemas.bronze.name}
+            project.silver_schema: ${resources.schemas.silver.name}
+{% endif %}
+{% endif %}
+{% endfor %}
+{% else %}
+{}
+{% endif %}

@@ -27,8 +27,7 @@ def test_minimal_dev_configuration_is_ready_for_ide(tmp_path, topology):
     dev = bundle["targets"]["dev"]
     assert dev["workspace"]["host"] == "https://my-workspace.example.com"
     assert dev["variables"]["catalog"] == "real_dev"
-    namespace = bundle["variables"]["namespace"]["default"]
-    assert namespace.replace("${bundle.target}", "dev") == "my_ml_project_dev"
+    assert "namespace" not in bundle["variables"]
     assert "${env." not in text
     required = {key for key, variable in bundle["variables"].items() if "default" not in variable}
     assert required <= dev["variables"].keys()
@@ -54,7 +53,6 @@ def test_minimal_dev_configuration_is_ready_for_ide(tmp_path, topology):
         ("dev_workspace_host", "https://workspace.example.com/path"),
         ("dev_catalog", ""),
         ("dev_catalog", "invalid catalog"),
-        ("schema_prefix", "invalid-prefix"),
         ("qa_catalog", "real_dev"),
         ("prod_catalog", "real_dev"),
     ],
@@ -72,3 +70,59 @@ def test_required_dev_answers_cannot_be_silently_omitted(tmp_path, missing):
     del answers[missing]
     with pytest.raises(ValueError):
         copy_project(tmp_path / "project", **answers)
+
+
+@pytest.mark.parametrize("topology", ["single_workspace", "separate_workspaces"])
+@pytest.mark.parametrize(
+    "catalog_action,schemas_action",
+    [("create", None), ("use_existing", "create"), ("use_existing", "use_existing")],
+)
+def test_catalog_and_schema_choices(tmp_path, topology, catalog_action, schemas_action):
+    answers = {
+        "workspace_topology": topology,
+        "dev_workspace_host": "https://dev.example.com",
+        "dev_catalog": "test_dev",
+        "dev_catalog_action": catalog_action,
+        "qa_catalog": "test_qa",
+        "qa_catalog_action": "use_existing",
+        "qa_schemas_action": "use_existing",
+        "prod_catalog": "test_prod",
+        "prod_catalog_action": "use_existing",
+        "prod_schemas_action": "use_existing",
+    }
+    if schemas_action:
+        answers["dev_schemas_action"] = schemas_action
+    if catalog_action == "create":
+        answers["dev_catalog_storage_root"] = "s3://example-managed/dev"
+    project = tmp_path / "project"
+    copy_project(project, **answers)
+    bundle = yaml.safe_load((project / "databricks.yml").read_text())
+    assert bundle["bundle"]["engine"] == "direct"
+    assert bundle["experimental"]["skip_name_prefix_for_schema"] is True
+    storage = yaml.safe_load((project / "resources/storage.schemas.yml").read_text())
+    resources = storage.get("targets", {}).get("dev", {}).get("resources", {})
+    assert ("catalogs" in resources) == (catalog_action == "create")
+    create_schemas = catalog_action == "create" or schemas_action == "create"
+    assert set(resources.get("schemas", {})) == (
+        set(["lz", "bronze", "silver", "gold"]) if create_schemas else set()
+    )
+    for schema, definition in resources.get("schemas", {}).items():
+        assert definition["name"] == schema
+        assert definition["catalog_name"] == (
+            "${resources.catalogs.environment_catalog.name}"
+            if catalog_action == "create"
+            else "${var.catalog}"
+        )
+        assert definition["lifecycle"]["prevent_destroy"]
+    if catalog_action == "create":
+        assert (
+            resources["catalogs"]["environment_catalog"]["storage_root"]
+            == "s3://example-managed/dev"
+        )
+    assert "qa" not in storage.get("targets", {}) and "prod" not in storage.get("targets", {})
+    pipeline = (project / "pipelines/transformations.py").read_text()
+    assert "namespace" not in pipeline
+    assert ".bronze.my_ml_project_raw" in pipeline
+    assert ".silver.my_ml_project_curated" in pipeline
+    assert ".gold.my_ml_project_features" in pipeline
+    assert "/lz/my_ml_project_files/input" in pipeline

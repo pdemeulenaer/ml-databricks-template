@@ -13,53 +13,62 @@ configurable documented baseline; confirm support in your workspace.
 
 ## Workspace setup (requires explicit authorization)
 
-Choose the CLI profile yourself; `make` refuses an empty PROFILE. Do not inspect or use
-credentials without authorization. Catalogs must already exist. Have the platform team
-grant schema/volume creation, pipeline creation, model creation/version and data access
-to the deploying/run-as service principal. Configure catalog-workspace bindings for PROD.
+Choose the CLI profile yourself; `make` refuses an empty PROFILE. Generation does
+not contact Databricks or create any resources. Copier records a catalog name and
+whether each target should create a catalog or use an existing one. A new catalog
+is created by the bundle on deployment using the direct engine. Creating a catalog
+requires the appropriate metastore privileges and managed storage: configure a
+metastore default or provide the optional catalog storage URL when generating.
+Configure workspace-catalog bindings and appropriate grants, especially for PROD.
 
-Copier has populated the DEV connection settings in `databricks.yml`:
+For an existing catalog, choose whether the bundle should **create** the four schemas
+or **use existing** schemas. Existing schemas are not taken over by the bundle and
+must already be named `lz`, `bronze`, `silver`, and `gold`. For a new catalog the
+bundle creates those four schemas. Managed catalogs and schemas are protected against
+bundle destroy; creating resources still requires appropriate privileges. A fresh
+catalog may also have Databricks system-created schemas such as `default` and
+`information_schema`.
 
-- Workspace: `{{ dev_workspace_host.rstrip('/') }}`.
-- Existing catalog: `{{ dev_catalog }}`.
-- Schema prefix: `{{ schema_prefix }}_dev` by default; QA/PROD receive `_qa`/`_prod`.
+The project owns a managed volume named `{{ package_name }}_files` in `lz`. If it
+already exists, bind it to the bundle before deploying, or use a different volume
+name consistently. To bind an existing volume, use its full Unity Catalog name:
 
-These are public configuration values, not credentials. The template does not create
-catalogs or verify their existence during generation. The reference currently supports
-lowercase catalog identifiers containing letters, digits and underscores. The generated
-schema prefix must be unique per developer when DEV data catalogs are shared.
-
-In VS Code, select the **dev** target in the Databricks extension and choose an
-authentication profile through its AuthType selector. Bundle parsing no longer needs
-workspace URL or catalog variables exported in the shell that launched VS Code. Authentication
-is still required to access a workspace. Select the CLI profile explicitly for `make`.
-
-For local overrides use the extension's Bundle Variables view, `BUNDLE_VAR_catalog` /
-`BUNDLE_VAR_namespace`, or an uncommitted
-`.databricks/bundle/<target>/variable-overrides.json`, for example:
-
-```json
-{"catalog": "chosen_dev_catalog", "namespace": "my_project_alice_dev"}
+```bash
+databricks bundle deployment bind landing_files my_dev_catalog.lz.{{ package_name }}_files \
+  --target dev --profile your-profile
 ```
 
-For QA/PROD, any workspace URL and catalog provided during generation are written into
-that target. With a shared workspace all three targets use the DEV workspace URL.
-If an optional separate-workspace URL was left blank, set `targets.<target>.workspace.host`
-or provide it through the explicitly selected authentication profile before use. If a
-catalog was left blank, set `targets.<target>.variables.catalog` or an explicit override.
-QA/PROD never inherit the DEV catalog. A DEV-only setup deliberately leaves release
-targets incomplete until you configure them.
+The bundle also creates jobs, pipelines and an experiment.
+Projects sharing a catalog must coordinate table and model names and permissions.
+
+Copier writes the DEV workspace and catalog into `databricks.yml`:
+
+```yaml
+targets:
+  dev:
+    workspace:
+      host: {{ dev_workspace_host.rstrip('/') | to_json }}
+    variables:
+      catalog: {{ dev_catalog | to_json }}
+```
+
+The top-level `variables.catalog` declares the variable; each target selects its own
+value. QA/PROD catalogs and separate workspace URLs can be supplied during generation
+or configured later. In the Databricks VS Code extension select the **dev** target
+and an authentication profile. `BUNDLE_VAR_catalog` or an uncommitted
+`.databricks/bundle/<target>/variable-overrides.json` can override the catalog; use
+the same value for validation, deployment and execution. No credentials are stored
+in Copier answers.
 
 For QA/PROD also set `BUNDLE_VAR_run_as` to the service principal application ID,
 `BUNDLE_VAR_deploy_root` to a restricted deployment folder, and
 `BUNDLE_VAR_model_version` to the approved numeric destination version. CI's protected
-Environment must define `DATABRICKS_HOST` matching the selected target; its catalog and
-namespace overrides remain supported. No credentials are stored in Copier answers.
+Environment must define `DATABRICKS_HOST` matching the selected target; its catalog override remains supported. No credentials are stored in Copier answers.
 
 ```bash
 make bundle-validate PROFILE=your-profile TARGET=dev
 make bundle-deploy PROFILE=your-profile TARGET=dev
-# Creates synthetic input files in the chosen DEV namespace; run once only.
+# Creates synthetic input files in the chosen DEV catalog; run once only.
 databricks bundle run seed_dev --target dev --profile your-profile
 make integration-dev PROFILE=your-profile
 ```
@@ -80,7 +89,7 @@ restricted to the default branch and a protected `qa` or `prod` Environment. Set
 reviewers and deployment branch restrictions on `prod` in GitHub settings: YAML alone
 cannot enforce human approval. Until protections are configured, do not enable releases.
 
-Environment variables: `DATABRICKS_HOST`, `DATABRICKS_CLIENT_ID`, `CATALOG`, `DATA_NAMESPACE`,
+Environment variables: `DATABRICKS_HOST`, `DATABRICKS_CLIENT_ID`, `CATALOG`,
 `RUN_AS`, `DEPLOY_ROOT`, `MODEL_VERSION`; use OAuth workload identity federation with the
 GitHub Environment subject and `id-token: write`. No long-lived token is required.
 QA deployment runs the data pipeline and then inference/monitoring/smoke against an
@@ -120,3 +129,34 @@ Connection configuration was reviewed on 28 October 2026 against the official
 [bundle variable precedence](https://docs.databricks.com/aws/en/dev-tools/bundles/variables)
 and [VS Code configuration](https://docs.databricks.com/aws/en/dev-tools/vscode-ext/configure)
 guidance. Generated DEV defaults are checked without using workspace credentials.
+
+## Updating from an earlier bundle layout
+
+If an older generated repository defined `seed_dev`, `integration_dev` or the
+`training` experiment inside `databricks.yml`, these definitions now live under
+`resources/`. When updating with Copier, review any changes or conflicts in
+`databricks.yml` and transfer project-specific edits to the corresponding resource
+file. The experiment resource key changed from `training` to `training_experiment` to
+avoid a duplicate key with the training job; review its existing state binding.
+Keep a single definition for each resource. Shared jobs remain in
+`resources/workflows.jobs.yml`.
+
+## Migrating from the prefixed schema layout
+
+**Do not deploy an updated project until its existing bundle state and data have been
+reviewed.** Removing or changing formerly managed schema and volume definitions can
+make a deployment plan propose destructive operations. `prevent_destroy` on the new
+resources does not protect resources removed from the new configuration. Back up
+the data and state, inspect a bundle plan and arrange any necessary state migration
+with the platform team before deployment.
+
+This template version changes paths and does **not** migrate existing data. The old
+`<namespace>_landing`, `_bronze`, `_silver`, `_gold`, `_models`, `_predictions`,
+and `_monitoring` schemas and their existing tables, volume and registered models
+remain where they are. The new workloads read and write `lz`, `bronze`, `silver`,
+and `gold`, with project-prefixed object names. Plan data and model migration,
+review deployment state and resource bindings, and validate in DEV before deploying.
+Do not destroy old resources or assume model versions exist at the new names.
+For existing four-schema catalogs select **use existing** to avoid attempting to
+create or assume ownership of shared schemas. Review Copier conflicts and the
+removed `namespace` overrides and CI variables.

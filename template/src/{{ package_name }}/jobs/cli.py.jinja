@@ -11,7 +11,6 @@ def main():
     parser.add_argument("--output", type=Path, default=Path("artifacts/demo"))
     parser.add_argument("--tune", action="store_true")
     parser.add_argument("--catalog")
-    parser.add_argument("--namespace", default="{{ package_name }}")
     parser.add_argument("--experiment")
     parser.add_argument("--model-version", default="candidate")
     parser.add_argument("--source-revision", default="unknown")

@@ -18,7 +18,7 @@ In the generated project run `uv lock`, `uv sync --locked --group dev --group do
 answers in the new repository. Inspect the selected split strategy and assumptions
 before adapting a notebook. Explain the model promotion and monitoring boundaries.
 
-Configure workspace URLs, catalogs, a unique DEV namespace, run-as identity, GitHub
+Configure workspace URLs, catalogs, catalog and schema create-or-use choices, run-as identity, GitHub
 Environments and OAuth federation when the user requests deployment setup. Ask them
 to choose the CLI profile and pass `--profile` explicitly. Credentials and remote
 resources need explicit authorization; local creation does not authorize deployment.

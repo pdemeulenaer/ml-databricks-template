@@ -32,7 +32,7 @@ def execute(args):
     from pyspark.sql import functions as F
 
     spark = SparkSession.builder.getOrCreate()
-    cfg = Settings(args.catalog, args.namespace)
+    cfg = Settings(args.catalog)
     mlflow.set_tracking_uri("databricks")
     mlflow.set_registry_uri("databricks-uc")
     if args.experiment:
@@ -126,7 +126,7 @@ def execute(args):
                 write_report(report, path)
                 mlflow.log_artifacts(directory, "monitoring")
         if any(report["breach"] for report in reports):
-            raise RuntimeError("Monitoring threshold exceeded; inspect monitoring.metrics")
+            raise RuntimeError("Monitoring threshold exceeded; inspect gold monitoring metrics")
     elif args.command == "smoke":
         if spark.table(features_name).limit(1).count() == 0:
             raise RuntimeError("No feature data")
@@ -145,7 +145,7 @@ def execute(args):
         if PROBLEM != "forecasting":
             raw.loc[raw.index[-60:], "target"] = float("nan")
         # Append a new uniquely named file. Run this once in DEV; never overwrite stream inputs.
-        path = f"/Volumes/{cfg.catalog}/{cfg.namespace}_landing/files/input"
+        path = f"/Volumes/{cfg.catalog}/lz/{{ package_name }}_files/input"
         seed = spark.createDataFrame(raw)
         seed = seed.withColumn(
             "target", F.when(F.isnan("target"), F.lit(None)).otherwise(F.col("target"))

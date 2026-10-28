@@ -29,7 +29,7 @@ QA and PROD inference require a numeric model version supplied at deployment.
 ## Promotion
 
 For a shared metastore, an authorized release operator can call MLflow's
-`MlflowClient.copy_model_version` with `models:/<source catalog>.<schema>.model/<version>`
+`MlflowClient.copy_model_version` with `models:/<source catalog>.gold.{{ package_name }}_model/<version>`
 and the destination model name. Evaluate the copied artifact on representative QA data,
 record both source and destination versions, and deploy the exact approved PROD version.
 Do not retrain during deployment or resolve a moving alias in QA/PROD. With separate

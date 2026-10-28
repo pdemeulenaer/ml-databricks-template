@@ -15,11 +15,12 @@ make test lint security docs-build demo
 uv run pre-commit install
 ```
 
-The questionnaire requires the actual DEV workspace URL and existing DEV catalog.
-It offers an editable schema prefix, defaulting to the package name; `_dev`, `_qa` and
-`_prod` are added to the bundle namespace by target. In a shared DEV catalog, add your
-name to the prefix to isolate your tables. Optional QA/PROD settings can be left blank
-until release setup; no DEV catalog default leaks into release targets.
+The questionnaire requires the DEV workspace URL and catalog name. For each
+environment choose whether to create the catalog on deployment or use an existing
+catalog. For existing catalogs, choose whether to create the four `lz`, `bronze`,
+`silver` and `gold` schemas or use ones that already exist. QA/PROD settings can be
+left blank until release setup; their catalogs never default to DEV. Generation does
+not contact a workspace or provision resources.
 
 The generated `databricks.yml` contains concrete DEV host/catalog values. In VS Code
 select target **dev** and choose authentication separately in the Databricks extension.

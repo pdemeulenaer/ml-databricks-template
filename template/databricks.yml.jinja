@@ -3,6 +3,11 @@
 bundle:
   name: {{ package_name }}
   databricks_cli_version: ">=1.22.1"
+  engine: direct
+
+experimental:
+  # DEV mode must not add a user prefix to the four shared schema names.
+  skip_name_prefix_for_schema: true
 
 include:
   - resources/*.yml
@@ -19,10 +24,7 @@ sync:
 
 variables:
   catalog:
-    description: Existing catalog for the selected target; DEV is configured during generation
-  namespace:
-    description: Project/developer schema prefix, distinct per environment
-    default: "{{ schema_prefix }}_${bundle.target}"
+    description: Catalog for the selected target; DEV is configured during generation
   model_version:
     description: Immutable approved model version for QA/PROD
     default: candidate
@@ -48,11 +50,6 @@ variables:
     type: complex
     default: []
 
-resources:
-  experiments:
-    training:
-      name: ${workspace.root_path}/training
-
 # No target is default: every command must choose a target and profile.
 targets:
   dev:
@@ -61,48 +58,6 @@ targets:
       host: {{ dev_workspace_host.rstrip('/') | to_json }}
     variables:
       catalog: {{ dev_catalog | to_json }}
-    resources:
-      jobs:
-        seed_dev:
-          name: ${bundle.name}-seed-dev
-          performance_target: STANDARD
-          tags: {project: "{{ project_name }}", aidevkit_project: ai-dev-kit}
-          tasks:
-            - task_key: seed
-              environment_key: runtime
-              python_wheel_task:
-                package_name: {{ project_name }}
-                entry_point: ml-workflow
-                parameters: [seed, --catalog, "${var.catalog}", --namespace, "${var.namespace}"]
-          environments:
-            - environment_key: runtime
-              spec:
-                environment_version: ${var.runtime_version}
-                dependencies: [./dist/*.whl]
-        integration_dev:
-          name: ${bundle.name}-integration-dev
-          performance_target: STANDARD
-          tags: {project: "{{ project_name }}", aidevkit_project: ai-dev-kit}
-          tasks:
-            - task_key: data
-              run_job_task:
-                job_id: ${resources.jobs.data_pipeline.id}
-            - task_key: train
-              depends_on: [{task_key: data}]
-              run_job_task:
-                job_id: ${resources.jobs.training.id}
-            - task_key: infer
-              depends_on: [{task_key: train}]
-              run_job_task:
-                job_id: ${resources.jobs.inference.id}
-            - task_key: monitor
-              depends_on: [{task_key: infer}]
-              run_job_task:
-                job_id: ${resources.jobs.monitoring.id}
-            - task_key: smoke
-              depends_on: [{task_key: monitor}]
-              run_job_task:
-                job_id: ${resources.jobs.smoke.id}
   qa:
     mode: production
     workspace:

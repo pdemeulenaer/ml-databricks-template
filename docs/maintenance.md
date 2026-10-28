@@ -81,12 +81,14 @@ This revision adds required `dev_workspace_host` and `dev_catalog` questions. On
 `copier update --skip-answered`, existing answers are retained and the new required
 questions are prompted. Enter the real values (including any host previously edited
 manually), review the merge and keep your working tree committed before updating.
-For noninteractive updates pass the two values with `--data`. Set `schema_prefix` when
-reusing an existing namespace; the bundle variable override `namespace` remains available.
-Review all namespace changes before deployment to avoid accidentally creating a second
-set of schemas. The update does not migrate existing data.
+For noninteractive updates pass the two values with `--data`. Catalog and schema create-or-use choices default to existing resources. The schema
+layout changed from project-prefixed schemas to `lz`, `bronze`, `silver`, and `gold`;
+this is a data and model migration, not an automatic rename. Bundle state may still
+manage the old schemas and volume; a new deployment plan can propose deleting or
+replacing them. Review the generated operations guide, back up data and state, and
+plan the migration before deploying. Protect existing data and model versions.
 
 QA/PROD host/catalog answers are optional. Their missing values must not block DEV,
 and their catalogs must never fall back to DEV. Tests exercise both topologies with
-only the required DEV answers, as well as fully configured targets. Use actual catalog
-names during creation; the template does not discover or provision catalogs.
+only the required DEV answers, as well as fully configured targets. Use actual catalog names during generation; creation choices provision them only
+when the corresponding bundle target is deployed.

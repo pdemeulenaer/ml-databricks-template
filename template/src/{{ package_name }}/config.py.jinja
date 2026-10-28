@@ -17,18 +17,22 @@ class Settings:
     """Validate identifiers at the external configuration boundary."""
 
     catalog: str
-    namespace: str
 
     def __post_init__(self):
         import re
 
-        for value in (self.catalog, self.namespace):
-            if not re.fullmatch(r"[a-z][a-z0-9_]*", value):
-                raise ValueError(f"Use a lowercase SQL identifier: {value!r}")
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", self.catalog):
+            raise ValueError(f"Use a lowercase SQL identifier: {self.catalog!r}")
 
     def table(self, layer: str, name: str) -> str:
-        return f"{self.catalog}.{self.namespace}_{layer}.{name}"
+        schemas = {"gold": "gold", "predictions": "gold", "monitoring": "gold"}
+        names = {
+            "features": "features",
+            "batch": "batch_predictions",
+            "metrics": "monitoring_metrics",
+        }
+        return f"{self.catalog}.{schemas[layer]}.{{ package_name }}_{names[name]}"
 
     @property
     def model_name(self) -> str:
-        return self.table("models", "model")
+        return f"{self.catalog}.gold.{{ package_name }}_model"

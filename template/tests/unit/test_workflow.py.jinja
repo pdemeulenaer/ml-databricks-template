@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from {{ package_name }}.config import FEATURES, PROBLEM
+from {{ package_name }}.config import FEATURES, PROBLEM, Settings
 from {{ package_name }}.data.synthetic import generate
 from {{ package_name }}.evaluation.metrics import evaluate
 from {{ package_name }}.features.build import build_features, curate
@@ -81,3 +81,19 @@ def test_future_values_cannot_change_past_features():
     left = original[original.event_time <= cutoff][["id", *FEATURES]].reset_index(drop=True)
     right = changed[changed.event_time <= cutoff][["id", *FEATURES]].reset_index(drop=True)
     pd.testing.assert_frame_equal(left, right)
+
+
+def test_unity_catalog_names():
+    settings = Settings("example_dev")
+    assert settings.table("gold", "features") == "example_dev.gold.{{ package_name }}_features"
+    assert (
+        settings.table("predictions", "batch")
+        == "example_dev.gold.{{ package_name }}_batch_predictions"
+    )
+    assert (
+        settings.table("monitoring", "metrics")
+        == "example_dev.gold.{{ package_name }}_monitoring_metrics"
+    )
+    assert settings.model_name == "example_dev.gold.{{ package_name }}_model"
+    with pytest.raises(ValueError):
+        Settings("invalid catalog")

@@ -16,7 +16,7 @@ project_title:
   default: "{{ project_name | replace('-', ' ') | title }}"
 package_name:
   type: str
-  help: Python package and default schema prefix
+  help: Python package identifier
   default: "{{ project_name | replace('-', '_') }}"
   validator: >-
     {% if not (package_name | regex_search('^[a-z][a-z0-9_]*$')) or package_name in
@@ -44,20 +44,32 @@ dev_workspace_host:
     {% if not (dev_workspace_host | regex_search('^https://[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]+)?/?$')) %}
     Enter the HTTPS workspace origin, without a path, query or credentials
     {% endif %}
+dev_catalog_action:
+  type: str
+  help: DEV catalog setup
+  choices:
+    Use an existing catalog: use_existing
+    Create a new catalog on bundle deployment: create
+  default: use_existing
+dev_schemas_action:
+  type: str
+  help: DEV four schemas (lz, bronze, silver, gold)
+  choices:
+    Create and manage the four schemas with the bundle: create
+    Use four existing schemas: use_existing
+  when: "{{ dev_catalog_action == 'use_existing' }}"
+  default: "{{ 'create' if dev_catalog_action == 'create' else 'use_existing' }}"
+dev_catalog_storage_root:
+  type: str
+  help: Optional managed storage URL for a new DEV catalog (leave blank for metastore default)
+  when: "{{ dev_catalog_action == 'create' }}"
+  default: ""
 dev_catalog:
   type: str
-  help: Existing DEV catalog (lowercase letters, digits and underscores)
+  help: DEV catalog name (lowercase letters, digits and underscores)
   validator: >-
     {% if not (dev_catalog | regex_search('^[a-z][a-z0-9_]*$')) %}
-    Enter an existing lowercase catalog identifier supported by this reference
-    {% endif %}
-schema_prefix:
-  type: str
-  help: Base schema prefix; target suffix is added (add your name for shared DEV catalogs)
-  default: "{{ package_name }}"
-  validator: >-
-    {% if not (schema_prefix | regex_search('^[a-z][a-z0-9_]*$')) %}
-    Use lowercase letters, digits and underscores, starting with a letter
+    Enter a lowercase catalog identifier supported by this reference
     {% endif %}
 qa_workspace_host:
   type: str
@@ -68,9 +80,29 @@ qa_workspace_host:
     {% if qa_workspace_host and not (qa_workspace_host | regex_search('^https://[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]+)?/?$')) %}
     Enter an HTTPS workspace origin or leave blank
     {% endif %}
+qa_catalog_action:
+  type: str
+  help: QA catalog setup
+  choices:
+    Use an existing catalog: use_existing
+    Create a new catalog on bundle deployment: create
+  default: use_existing
+qa_schemas_action:
+  type: str
+  help: QA four schemas (lz, bronze, silver, gold)
+  choices:
+    Create and manage the four schemas with the bundle: create
+    Use four existing schemas: use_existing
+  when: "{{ qa_catalog_action == 'use_existing' }}"
+  default: "{{ 'create' if qa_catalog_action == 'create' else 'use_existing' }}"
+qa_catalog_storage_root:
+  type: str
+  help: Optional managed storage URL for a new QA catalog (leave blank for metastore default)
+  when: "{{ qa_catalog_action == 'create' }}"
+  default: ""
 qa_catalog:
   type: str
-  help: Existing QA catalog (optional; leave blank to configure later)
+  help: QA catalog name (optional; leave blank to configure later)
   default: ""
   validator: >-
     {% if qa_catalog and (not (qa_catalog | regex_search('^[a-z][a-z0-9_]*$')) or qa_catalog == dev_catalog) %}
@@ -85,9 +117,29 @@ prod_workspace_host:
     {% if prod_workspace_host and not (prod_workspace_host | regex_search('^https://[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]+)?/?$')) %}
     Enter an HTTPS workspace origin or leave blank
     {% endif %}
+prod_catalog_action:
+  type: str
+  help: PROD catalog setup
+  choices:
+    Use an existing catalog: use_existing
+    Create a new catalog on bundle deployment: create
+  default: use_existing
+prod_schemas_action:
+  type: str
+  help: PROD four schemas (lz, bronze, silver, gold)
+  choices:
+    Create and manage the four schemas with the bundle: create
+    Use four existing schemas: use_existing
+  when: "{{ prod_catalog_action == 'use_existing' }}"
+  default: "{{ 'create' if prod_catalog_action == 'create' else 'use_existing' }}"
+prod_catalog_storage_root:
+  type: str
+  help: Optional managed storage URL for a new PROD catalog (leave blank for metastore default)
+  when: "{{ prod_catalog_action == 'create' }}"
+  default: ""
 prod_catalog:
   type: str
-  help: Existing PROD catalog (optional; leave blank to configure later)
+  help: PROD catalog name (optional; leave blank to configure later)
   default: ""
   validator: >-
     {% if prod_catalog and (not (prod_catalog | regex_search('^[a-z][a-z0-9_]*$')) or prod_catalog in [dev_catalog, qa_catalog]) %}

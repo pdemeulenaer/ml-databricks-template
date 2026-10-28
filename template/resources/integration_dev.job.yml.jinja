@@ -1,0 +1,28 @@
+targets:
+  dev:
+    resources:
+      jobs:
+        integration_dev:
+          name: ${bundle.name}-integration-dev
+          performance_target: STANDARD
+          tags: {project: "{{ project_name }}", aidevkit_project: ai-dev-kit}
+          tasks:
+            - task_key: data
+              run_job_task:
+                job_id: ${resources.jobs.data_pipeline.id}
+            - task_key: train
+              depends_on: [{task_key: data}]
+              run_job_task:
+                job_id: ${resources.jobs.training.id}
+            - task_key: infer
+              depends_on: [{task_key: train}]
+              run_job_task:
+                job_id: ${resources.jobs.inference.id}
+            - task_key: monitor
+              depends_on: [{task_key: infer}]
+              run_job_task:
+                job_id: ${resources.jobs.monitoring.id}
+            - task_key: smoke
+              depends_on: [{task_key: monitor}]
+              run_job_task:
+                job_id: ${resources.jobs.smoke.id}

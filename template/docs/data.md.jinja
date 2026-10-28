@@ -3,7 +3,7 @@
 The local dataset is deterministic (seed 42), numeric and under 10,000 rows. IDs are
 stable and unique. Timestamps represent hourly observations. Missing IDs fail;
 nonfinite features are dropped. Missing future labels are permitted for scoring.
-Remote seed input must be used only once in an isolated DEV namespace.
+Remote seed input must be used only once in an isolated DEV catalog.
 
 For classification/regression the observations are independent. Use a group split for
 repeated entities and a temporal split for time-dependent outcomes in a real project.

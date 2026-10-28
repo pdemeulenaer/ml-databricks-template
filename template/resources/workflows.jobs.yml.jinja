@@ -33,10 +33,8 @@ resources:
               - train
               - --catalog
               - ${var.catalog}
-              - --namespace
-              - ${var.namespace}
               - --experiment
-              - ${resources.experiments.training.name}
+              - ${resources.experiments.training_experiment.name}
               - --model-version
               - ${var.model_version}
               - --source-revision
@@ -67,10 +65,8 @@ resources:
               - infer
               - --catalog
               - ${var.catalog}
-              - --namespace
-              - ${var.namespace}
               - --experiment
-              - ${resources.experiments.training.name}
+              - ${resources.experiments.training_experiment.name}
               - --model-version
               - ${var.model_version}
               - --source-revision
@@ -101,10 +97,8 @@ resources:
               - monitor
               - --catalog
               - ${var.catalog}
-              - --namespace
-              - ${var.namespace}
               - --experiment
-              - ${resources.experiments.training.name}
+              - ${resources.experiments.training_experiment.name}
               - --model-version
               - ${var.model_version}
               - --source-revision
@@ -131,10 +125,8 @@ resources:
               - smoke
               - --catalog
               - ${var.catalog}
-              - --namespace
-              - ${var.namespace}
               - --experiment
-              - ${resources.experiments.training.name}
+              - ${resources.experiments.training_experiment.name}
               - --model-version
               - ${var.model_version}
               - --source-revision

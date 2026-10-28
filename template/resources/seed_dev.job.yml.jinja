@@ -1,0 +1,20 @@
+targets:
+  dev:
+    resources:
+      jobs:
+        seed_dev:
+          name: ${bundle.name}-seed-dev
+          performance_target: STANDARD
+          tags: {project: "{{ project_name }}", aidevkit_project: ai-dev-kit}
+          tasks:
+            - task_key: seed
+              environment_key: runtime
+              python_wheel_task:
+                package_name: {{ project_name }}
+                entry_point: ml-workflow
+                parameters: [seed, --catalog, "${var.catalog}"]
+          environments:
+            - environment_key: runtime
+              spec:
+                environment_version: ${var.runtime_version}
+                dependencies: [../dist/*.whl]

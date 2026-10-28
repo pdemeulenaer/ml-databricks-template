@@ -8,8 +8,7 @@ from {{ package_name }}.config import FEATURES, HORIZON, PROBLEM
 
 spark = SparkSession.builder.getOrCreate()
 catalog = spark.conf.get("project.catalog")
-namespace = spark.conf.get("project.namespace")
-landing = f"/Volumes/{catalog}/{namespace}_landing/files/input"
+landing = f"/Volumes/{catalog}/lz/{{ package_name }}_files/input"
 ingestion_mode = "{{ ingestion_mode }}"
 raw_schema = "id string, series_id string, event_time timestamp, target double" + (
     ", x1 double, x2 double" if PROBLEM != "forecasting" else ""
@@ -25,22 +24,22 @@ def raw_input():
 
 if ingestion_mode == "batch":
 
-    @dp.materialized_view(name=f"{catalog}.{namespace}_bronze.raw")
+    @dp.materialized_view(name=f"{catalog}.bronze.{{ package_name }}_raw")
     def bronze():
         return raw_input()
 else:
 
-    @dp.table(name=f"{catalog}.{namespace}_bronze.raw")
+    @dp.table(name=f"{catalog}.bronze.{{ package_name }}_raw")
     def bronze():
         return raw_input()
 
 
-@dp.materialized_view(name=f"{catalog}.{namespace}_silver.curated")
+@dp.materialized_view(name=f"{catalog}.silver.{{ package_name }}_curated")
 @dp.expect_or_fail("required_id", "id IS NOT NULL")
 @dp.expect_or_drop("valid_time", "event_time IS NOT NULL AND series_id IS NOT NULL")
 @dp.expect("label_available", "target IS NOT NULL")
 def silver():
-    frame = spark.read.table(f"{catalog}.{namespace}_bronze.raw")
+    frame = spark.read.table(f"{catalog}.bronze.{{ package_name }}_raw")
     numeric = ["target"] if PROBLEM == "forecasting" else FEATURES
     for name in numeric:
         frame = frame.where(
@@ -49,14 +48,14 @@ def silver():
     return frame
 
 
-@dp.materialized_view(name=f"{catalog}.{namespace}_gold.features")
+@dp.materialized_view(name=f"{catalog}.gold.{{ package_name }}_features")
 @dp.expect_or_fail("unique_key", "key_count = 1")
 @dp.expect_or_fail("unique_series_time", "time_count = 1")
 @dp.expect_or_fail(
     "regular_hourly", "previous_time IS NULL OR event_time = previous_time + INTERVAL 1 HOUR"
 )
 def gold():
-    frame = spark.read.table(f"{catalog}.{namespace}_silver.curated")
+    frame = spark.read.table(f"{catalog}.silver.{{ package_name }}_curated")
     frame = frame.withColumn("key_count", F.count("*").over(Window.partitionBy("id")))
     if PROBLEM != "forecasting":
         return (

@@ -17,7 +17,6 @@ jobs:
       DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
       DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
       BUNDLE_VAR_catalog: ${{ vars.CATALOG }}
-      BUNDLE_VAR_namespace: ${{ vars.DATA_NAMESPACE }}
       BUNDLE_VAR_source_revision: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4

@@ -28,7 +28,6 @@ jobs:
       DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
       DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
       BUNDLE_VAR_catalog: ${{ vars.CATALOG }}
-      BUNDLE_VAR_namespace: ${{ vars.DATA_NAMESPACE }}
       BUNDLE_VAR_run_as: ${{ vars.RUN_AS }}
       BUNDLE_VAR_deploy_root: ${{ vars.DEPLOY_ROOT }}
       BUNDLE_VAR_model_version: ${{ inputs.model_version }}
