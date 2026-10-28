@@ -18,3 +18,8 @@ Commit `uv.lock` after `uv lock` and use `uv sync --locked` in CI.
 `template-basis.yml` records the reviewed skill versions/hashes, tested Databricks CLI
 and validation scope of the template. `.copier-answers.yml` identifies the template
 source and Git revision when available. See `docs/operations.md` for their update policy.
+
+DEV is configured for `{{ dev_workspace_host.rstrip('/') }}` and catalog `{{ dev_catalog }}`.
+The default namespace is `{{ schema_prefix }}_dev`. Select the **dev** target and an
+authentication profile in the Databricks VS Code extension. See the operations guide
+for local overrides and for completing any deferred QA/PROD connection settings.

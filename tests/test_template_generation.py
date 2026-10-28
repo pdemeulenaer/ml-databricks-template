@@ -41,6 +41,12 @@ def render(destination, *, problem="classification", topology="separate_workspac
             "problem_type": problem,
             "workspace_topology": topology,
             "ingestion_mode": mode,
+            "dev_workspace_host": "https://dev.example.databricks.com",
+            "dev_catalog": "test_dev",
+            "qa_workspace_host": "https://qa.example.databricks.com",
+            "qa_catalog": "test_qa",
+            "prod_workspace_host": "https://prod.example.databricks.com",
+            "prod_catalog": "test_prod",
         },
         defaults=True,
         quiet=True,
@@ -96,6 +102,13 @@ def test_architecture_matrix(tmp_path, bundle_schema, problem, topology, mode):
     root = yaml.safe_load((project / "databricks.yml").read_text())
     hosts = {target["workspace"]["host"] for target in root["targets"].values()}
     assert len(hosts) == (1 if topology == "single_workspace" else 3)
+    assert "${env." not in (project / "databricks.yml").read_text()
+    assert {name: target["variables"]["catalog"] for name, target in root["targets"].items()} == {
+        "dev": "test_dev",
+        "qa": "test_qa",
+        "prod": "test_prod",
+    }
+    assert root["variables"]["namespace"]["default"] == f"sample_{problem}_${{bundle.target}}"
     assert all("default" not in target for target in root["targets"].values())
     assert "seed_dev" not in root["targets"]["prod"].get("resources", {}).get("jobs", {})
     resources = yaml.safe_load((project / "resources/workflows.jobs.yml").read_text())["resources"]
@@ -171,6 +184,10 @@ def test_copier_update_preserves_project_customization(tmp_path):
             "--defaults",
             "--vcs-ref",
             "v0.1.0",
+            "--data",
+            "dev_workspace_host=https://dev.example.databricks.com",
+            "--data",
+            "dev_catalog=test_dev",
             str(source.resolve()),
             str(destination),
         ],

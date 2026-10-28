@@ -18,18 +18,43 @@ credentials without authorization. Catalogs must already exist. Have the platfor
 grant schema/volume creation, pipeline creation, model creation/version and data access
 to the deploying/run-as service principal. Configure catalog-workspace bindings for PROD.
 
-Set bundle variables through environment variables or an uncommitted
-`.databricks/bundle/<target>/variable-overrides.json`:
+Copier has populated the DEV connection settings in `databricks.yml`:
+
+- Workspace: `{{ dev_workspace_host.rstrip('/') }}`.
+- Existing catalog: `{{ dev_catalog }}`.
+- Schema prefix: `{{ schema_prefix }}_dev` by default; QA/PROD receive `_qa`/`_prod`.
+
+These are public configuration values, not credentials. The template does not create
+catalogs or verify their existence during generation. The reference currently supports
+lowercase catalog identifiers containing letters, digits and underscores. The generated
+schema prefix must be unique per developer when DEV data catalogs are shared.
+
+In VS Code, select the **dev** target in the Databricks extension and choose an
+authentication profile through its AuthType selector. Bundle parsing no longer needs
+workspace URL or catalog variables exported in the shell that launched VS Code. Authentication
+is still required to access a workspace. Select the CLI profile explicitly for `make`.
+
+For local overrides use the extension's Bundle Variables view, `BUNDLE_VAR_catalog` /
+`BUNDLE_VAR_namespace`, or an uncommitted
+`.databricks/bundle/<target>/variable-overrides.json`, for example:
 
 ```json
-{"catalog": "chosen_dev_catalog", "namespace": "my_project_alice"}
+{"catalog": "chosen_dev_catalog", "namespace": "my_project_alice_dev"}
 ```
 
-Set the target workspace URL using the environment variable named in `databricks.yml`.
-For QA and PROD also set `BUNDLE_VAR_run_as` to the service principal application ID,
+For QA/PROD, any workspace URL and catalog provided during generation are written into
+that target. With a shared workspace all three targets use the DEV workspace URL.
+If an optional separate-workspace URL was left blank, set `targets.<target>.workspace.host`
+or provide it through the explicitly selected authentication profile before use. If a
+catalog was left blank, set `targets.<target>.variables.catalog` or an explicit override.
+QA/PROD never inherit the DEV catalog. A DEV-only setup deliberately leaves release
+targets incomplete until you configure them.
+
+For QA/PROD also set `BUNDLE_VAR_run_as` to the service principal application ID,
 `BUNDLE_VAR_deploy_root` to a restricted deployment folder, and
-`BUNDLE_VAR_model_version` to the approved numeric destination version. Use a different
-namespace per DEV developer: development mode does not isolate Unity Catalog tables.
+`BUNDLE_VAR_model_version` to the approved numeric destination version. CI's protected
+Environment must define `DATABRICKS_HOST` matching the selected target; its catalog and
+namespace overrides remain supported. No credentials are stored in Copier answers.
 
 ```bash
 make bundle-validate PROFILE=your-profile TARGET=dev
@@ -90,3 +115,8 @@ References: [bundle templates](https://docs.databricks.com/aws/en/dev-tools/bund
 [Unity Catalog models](https://docs.databricks.com/aws/en/machine-learning/manage-model-lifecycle/),
 [Python pipelines](https://docs.databricks.com/aws/en/ldp/developer/python-dev),
 [serving monitoring](https://docs.databricks.com/aws/en/machine-learning/model-serving/monitor-diagnose-endpoints).
+
+Connection configuration was reviewed on 28 October 2026 against the official
+[bundle variable precedence](https://docs.databricks.com/aws/en/dev-tools/bundles/variables)
+and [VS Code configuration](https://docs.databricks.com/aws/en/dev-tools/vscode-ext/configure)
+guidance. Generated DEV defaults are checked without using workspace credentials.

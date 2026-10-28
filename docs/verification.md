@@ -1,5 +1,12 @@
 # Verification and boundaries
 
+Verification on 28 October 2026: **33 template tests passed**, including the new
+workspace/catalog questionnaire checks, both topology profiles, all three local ML
+examples, and the Copier update test. Lint/format checks and strict documentation
+builds passed. Temporary generated projects were removed after each test to fit the
+available local disk space; no assertions were skipped. Workspace authentication,
+permissions and remote execution remain unverified.
+
 Local verification on 26 October 2026: **21 template tests passed**. This includes
 the 12-way render matrix, three complete generated-project checks and a Git-based
 Copier update. Root lint/format checks and strict MkDocs build also passed. Each

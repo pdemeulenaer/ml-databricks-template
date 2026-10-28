@@ -74,3 +74,19 @@ source path or Git URL. A missing `_commit` is a separate issue: do not invent a
 revision. Compare the existing scaffold with a fresh render of a known source revision
 and establish a matching baseline, preserving customizations. `copier recopy` does not
 preserve project evolution, so it is not a substitute for this comparison.
+
+## Adding connection settings to an existing generated project
+
+This revision adds required `dev_workspace_host` and `dev_catalog` questions. On
+`copier update --skip-answered`, existing answers are retained and the new required
+questions are prompted. Enter the real values (including any host previously edited
+manually), review the merge and keep your working tree committed before updating.
+For noninteractive updates pass the two values with `--data`. Set `schema_prefix` when
+reusing an existing namespace; the bundle variable override `namespace` remains available.
+Review all namespace changes before deployment to avoid accidentally creating a second
+set of schemas. The update does not migrate existing data.
+
+QA/PROD host/catalog answers are optional. Their missing values must not block DEV,
+and their catalogs must never fall back to DEV. Tests exercise both topologies with
+only the required DEV answers, as well as fully configured targets. Use actual catalog
+names during creation; the template does not discover or provision catalogs.

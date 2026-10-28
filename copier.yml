@@ -36,6 +36,63 @@ workspace_topology:
     Separate DEV/QA/PROD workspaces and catalogs: separate_workspaces
     One workspace with DEV/QA/PROD catalogs: single_workspace
   default: separate_workspaces
+# These are public connection settings, not credentials. DEV must be usable after generation.
+dev_workspace_host:
+  type: str
+  help: HTTPS DEV workspace URL (also used by QA/PROD for a shared workspace)
+  validator: >-
+    {% if not (dev_workspace_host | regex_search('^https://[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]+)?/?$')) %}
+    Enter the HTTPS workspace origin, without a path, query or credentials
+    {% endif %}
+dev_catalog:
+  type: str
+  help: Existing DEV catalog (lowercase letters, digits and underscores)
+  validator: >-
+    {% if not (dev_catalog | regex_search('^[a-z][a-z0-9_]*$')) %}
+    Enter an existing lowercase catalog identifier supported by this reference
+    {% endif %}
+schema_prefix:
+  type: str
+  help: Base schema prefix; target suffix is added (add your name for shared DEV catalogs)
+  default: "{{ package_name }}"
+  validator: >-
+    {% if not (schema_prefix | regex_search('^[a-z][a-z0-9_]*$')) %}
+    Use lowercase letters, digits and underscores, starting with a letter
+    {% endif %}
+qa_workspace_host:
+  type: str
+  help: HTTPS QA workspace URL (optional; leave blank to configure later)
+  when: "{{ workspace_topology == 'separate_workspaces' }}"
+  default: "{{ dev_workspace_host if workspace_topology == 'single_workspace' else '' }}"
+  validator: >-
+    {% if qa_workspace_host and not (qa_workspace_host | regex_search('^https://[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]+)?/?$')) %}
+    Enter an HTTPS workspace origin or leave blank
+    {% endif %}
+qa_catalog:
+  type: str
+  help: Existing QA catalog (optional; leave blank to configure later)
+  default: ""
+  validator: >-
+    {% if qa_catalog and (not (qa_catalog | regex_search('^[a-z][a-z0-9_]*$')) or qa_catalog == dev_catalog) %}
+    Enter a lowercase QA catalog distinct from DEV, or leave blank
+    {% endif %}
+prod_workspace_host:
+  type: str
+  help: HTTPS PROD workspace URL (optional; leave blank to configure later)
+  when: "{{ workspace_topology == 'separate_workspaces' }}"
+  default: "{{ dev_workspace_host if workspace_topology == 'single_workspace' else '' }}"
+  validator: >-
+    {% if prod_workspace_host and not (prod_workspace_host | regex_search('^https://[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]+)?/?$')) %}
+    Enter an HTTPS workspace origin or leave blank
+    {% endif %}
+prod_catalog:
+  type: str
+  help: Existing PROD catalog (optional; leave blank to configure later)
+  default: ""
+  validator: >-
+    {% if prod_catalog and (not (prod_catalog | regex_search('^[a-z][a-z0-9_]*$')) or prod_catalog in [dev_catalog, qa_catalog]) %}
+    Enter a lowercase PROD catalog distinct from DEV and QA, or leave blank
+    {% endif %}
 ingestion_mode:
   type: str
   help: Batch snapshots or incremental immutable JSON files

@@ -8,7 +8,10 @@ and the source needed for deliberate updates.
 | --- | --- | --- |
 | Name, package, title | Validated identifiers; display title | Imports, wheel, docs and bundle names |
 | Problem | Classification / regression / forecasting | Example, feature contract, metrics and split |
-| Topology | Separate workspaces / shared workspace | Three distinct host variables or one shared host |
+| Topology | Separate workspaces / shared workspace | Per-target literal workspace URLs or one shared workspace URL |
+| DEV connection | Required HTTPS workspace URL and existing catalog | DEV bundle resolves without shell setup |
+| Schema prefix | Editable default from the package name | Environment suffixes separate DEV/QA/PROD schemas |
+| QA/PROD connection | Optional URLs/catalogs | Configure release targets now or defer them |
 | Ingestion | Batch / arriving files | Bronze materialized view or Auto Loader streaming table |
 
 Separate workspaces and catalogs are the enterprise default. Bind catalogs to intended

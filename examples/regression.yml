@@ -4,3 +4,11 @@ package_name: example_regression
 problem_type: regression
 workspace_topology: separate_workspaces
 ingestion_mode: batch
+# Documentation-only connection examples; replace these before using a workspace.
+dev_workspace_host: https://dev.example.databricks.com
+dev_catalog: example_dev
+schema_prefix: example_ml
+qa_workspace_host: https://qa.example.databricks.com
+qa_catalog: example_qa
+prod_workspace_host: https://prod.example.databricks.com
+prod_catalog: example_prod

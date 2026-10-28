@@ -1,4 +1,5 @@
-# Declarative Automation Bundles. Set workspace environment variables before validation.
+# Declarative Automation Bundles. Workspace URLs and catalog defaults come from Copier answers.
+# Authentication is selected separately in VS Code or with an explicit CLI profile.
 bundle:
   name: {{ package_name }}
   databricks_cli_version: ">=1.22.1"
@@ -18,9 +19,10 @@ sync:
 
 variables:
   catalog:
-    description: Existing environment catalog; explicitly supplied by the operator
+    description: Existing catalog for the selected target; DEV is configured during generation
   namespace:
-    description: Unique project/developer schema prefix (lowercase SQL identifier)
+    description: Project/developer schema prefix, distinct per environment
+    default: "{{ schema_prefix }}_${bundle.target}"
   model_version:
     description: Immutable approved model version for QA/PROD
     default: candidate
@@ -56,11 +58,9 @@ targets:
   dev:
     mode: development
     workspace:
-{% if workspace_topology == 'single_workspace' %}
-      host: ${env.DATABRICKS_WORKSPACE_HOST}
-{% else %}
-      host: ${env.DATABRICKS_DEV_HOST}
-{% endif %}
+      host: {{ dev_workspace_host.rstrip('/') | to_json }}
+    variables:
+      catalog: {{ dev_catalog | to_json }}
     resources:
       jobs:
         seed_dev:
@@ -107,26 +107,40 @@ targets:
     mode: production
     workspace:
 {% if workspace_topology == 'single_workspace' %}
-      host: ${env.DATABRICKS_WORKSPACE_HOST}
+      host: {{ dev_workspace_host.rstrip('/') | to_json }}
+{% elif qa_workspace_host %}
+      host: {{ qa_workspace_host.rstrip('/') | to_json }}
 {% else %}
-      host: ${env.DATABRICKS_QA_HOST}
+      # Set this target's host before use, or supply it through the explicitly chosen profile.
 {% endif %}
       root_path: ${var.deploy_root}
     run_as:
       service_principal_name: ${var.run_as}
     variables:
+{% if qa_catalog %}
+      catalog: {{ qa_catalog | to_json }}
+{% else %}
+      # Supply catalog for this target before validation/deployment; DEV is never inherited.
+{% endif %}
       model_version: ""
       schedule_pause: UNPAUSED
   prod:
     mode: production
     workspace:
 {% if workspace_topology == 'single_workspace' %}
-      host: ${env.DATABRICKS_WORKSPACE_HOST}
+      host: {{ dev_workspace_host.rstrip('/') | to_json }}
+{% elif prod_workspace_host %}
+      host: {{ prod_workspace_host.rstrip('/') | to_json }}
 {% else %}
-      host: ${env.DATABRICKS_PROD_HOST}
+      # Set this target's host before use, or supply it through the explicitly chosen profile.
 {% endif %}
       root_path: ${var.deploy_root}
     run_as:
       service_principal_name: ${var.run_as}
     variables:
+{% if prod_catalog %}
+      catalog: {{ prod_catalog | to_json }}
+{% else %}
+      # Supply catalog for this target before validation/deployment; DEV is never inherited.
+{% endif %}
       model_version: ""

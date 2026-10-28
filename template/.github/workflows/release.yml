@@ -27,9 +27,6 @@ jobs:
       DATABRICKS_AUTH_TYPE: github-oidc
       DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
       DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
-      DATABRICKS_QA_HOST: ${{ vars.DATABRICKS_HOST }}
-      DATABRICKS_PROD_HOST: ${{ vars.DATABRICKS_HOST }}
-      DATABRICKS_WORKSPACE_HOST: ${{ vars.DATABRICKS_HOST }}
       BUNDLE_VAR_catalog: ${{ vars.CATALOG }}
       BUNDLE_VAR_namespace: ${{ vars.DATA_NAMESPACE }}
       BUNDLE_VAR_run_as: ${{ vars.RUN_AS }}

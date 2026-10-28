@@ -16,7 +16,9 @@ make test lint security docs-build demo
 ```
 
 For a new repository, run `uvx copier copy /path/to/repo-template /path/to/new-project`
-and answer the questionnaire. No trusted tasks, credentials or remote resources are
+and answer the questionnaire, including the DEV workspace URL and existing DEV catalog.
+The generated DEV bundle then has concrete connection defaults for VS Code; authentication
+is chosen separately. QA/PROD connection settings can be supplied now or completed later. No trusted tasks, credentials or remote resources are
 used during generation. In a generated Git repository, retain `.copier-answers.yml`
 and run `copier update` for future template updates. Prefer tagged template releases.
 The template source must be committed to Git before versioned Copier updates are

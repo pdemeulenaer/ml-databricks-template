@@ -15,6 +15,28 @@ make test lint security docs-build demo
 uv run pre-commit install
 ```
 
+The questionnaire requires the actual DEV workspace URL and existing DEV catalog.
+It offers an editable schema prefix, defaulting to the package name; `_dev`, `_qa` and
+`_prod` are added to the bundle namespace by target. In a shared DEV catalog, add your
+name to the prefix to isolate your tables. Optional QA/PROD settings can be left blank
+until release setup; no DEV catalog default leaks into release targets.
+
+The generated `databricks.yml` contains concrete DEV host/catalog values. In VS Code
+select target **dev** and choose authentication separately in the Databricks extension.
+There is no need to export workspace/catalog variables before launching the IDE.
+`--defaults` / noninteractive creation must supply the required connection answers:
+
+```bash
+uvx copier copy --defaults \
+  --data dev_workspace_host=https://your-workspace.example.com \
+  --data dev_catalog=your_existing_dev_catalog \
+  /path/to/repo-template /path/to/new-project
+```
+
+These URLs and catalog names are public configuration, not credentials. Do not provide
+PATs, passwords or OAuth tokens to Copier. Local checks work without workspace access.
+The `examples/*.yml` URLs/catalogs are documentation-only examples for local rendering.
+
 Commit the generated lockfile and Copier answers when initializing your new Git repository.
 The answers file should contain `_src_path` and `_commit`. If `_commit` is missing,
 the project was generated from an unversioned source and needs a verified baseline

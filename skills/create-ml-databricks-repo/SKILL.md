@@ -6,7 +6,10 @@ description: Create a modular Databricks ML repository from the reusable Copier 
 Find the installed template source from the user's repository path or tagged Git URL.
 Collect project/package names, problem type, workspace topology (separate workspaces
 and catalogs by default; a shared workspace with separate catalogs is supported), and
-batch or arriving-file ingestion. Infer display title from the project name.
+batch or arriving-file ingestion. Collect the real DEV workspace HTTPS URL and existing
+DEV catalog; do not infer either from credentials or use invented defaults. Offer a
+project/developer schema prefix (the target suffix is added). QA/PROD host and catalog
+answers are optional until release setup. Infer display title from the project name.
 Run `uvx copier copy <source> <destination>`; prefer a release tag for reproducibility.
 Do not enable trust or run template tasks; this template has none.
 
