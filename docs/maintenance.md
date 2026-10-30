@@ -61,13 +61,25 @@ choose a DEV profile, obtain authorization, validate/deploy the bundle and run t
 DEV integration with isolated synthetic input. Record workspace/runtime versions and
 results. Do not call a local-only release remotely verified.
 
-For tagged versions use `uvx copier copy --vcs-ref vX.Y.Z <source> <destination>`.
-Use a Git URL or absolute local source path. Before updating a generated repository,
-commit all intended files, including `.copier-answers.yml` and the generated dotfiles;
-Copier requires a clean Git working tree.
-Update from a clean generated Git repository using `uvx copier update`; inspect conflicts,
-run `uv lock` when dependencies change, and rerun local and authorized DEV checks.
-Version tags and publishing are operator actions; this scaffold does not create a release.
+Create and publish an annotated tag on the reviewed commit. For example, from the
+**template repository**, after committing the release changes:
+
+```bash
+git status
+git tag -a v0.3.0 -m "Release template v0.3.0"
+git push origin main
+git push origin v0.3.0
+```
+
+Use the actual release version and branch name. Git tags point to commits, so commit
+the intended files before tagging. Prefer a new tag for each release rather than
+moving a tag already used by projects. Pushing the tag publishes it to the Git remote.
+For a local template source the tag is available locally without a push.
+
+Generate a project from a specific tag with `uvx copier copy --vcs-ref v0.3.0
+<template-source> <destination>`. Use a Git URL or an absolute local source path.
+For the complete generation and update commands, see [Create a project](getting-started.md).
+
 
 If an early copy has a broken relative `_src_path`, correct it to the actual absolute
 source path or Git URL. A missing `_commit` is a separate issue: do not invent an old

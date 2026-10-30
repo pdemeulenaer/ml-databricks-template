@@ -7,7 +7,7 @@ run `copier update` from the generated project's directory. A Git repository URL
 provides a stable source reference.
 
 ```bash
-uvx copier copy /path/to/repo-template /path/to/new-project
+uvx copier copy --vcs-ref v0.2.0 /path/to/repo-template /path/to/new-project
 cd /path/to/new-project
 uv lock
 uv sync --locked --group dev --group docs
@@ -38,10 +38,43 @@ These URLs and catalog names are public configuration, not credentials. Do not p
 PATs, passwords or OAuth tokens to Copier. Local checks work without workspace access.
 The `examples/*.yml` URLs/catalogs are documentation-only examples for local rendering.
 
-Commit the generated lockfile and Copier answers when initializing your new Git repository.
+Initialize Git **inside the generated project**, review the files and commit them,
+including `uv.lock` and `.copier-answers.yml`:
+
+```bash
+cd /path/to/new-project
+git init -b main
+git status
+git add .
+git commit -m "Create project from template v0.2.0"
+```
+
+The generated project's `.gitignore` excludes environment files and build artifacts.
+Review your staged files before committing project-specific additions.
+
 The answers file should contain `_src_path` and `_commit`. If `_commit` is missing,
 the project was generated from an unversioned source and needs a verified baseline
 before normal updates can work.
+## Update an existing project
+
+Commit project changes first: Copier requires a clean working tree. Run the update
+from the generated project, then review the changes and resolve any conflicts:
+
+```bash
+cd /path/to/new-project
+git status
+uvx copier update --vcs-ref v0.3.0 --skip-answered
+git status
+git diff
+```
+
+Use a tag that exists in the configured template source. `--skip-answered` retains saved
+answers and asks new questions. Without `--vcs-ref`, Copier chooses the latest eligible
+version tag. After resolving conflicts, regenerate the lockfile if dependencies changed,
+run local checks, and commit the update, including `.copier-answers.yml`. See the
+[maintenance guide](maintenance.md) if the source path or original revision is missing.
+`copier recopy` overwrites template files and does not preserve project modifications.
+
 No Copier tasks execute automatically. `examples/*.yml` contain reproducible answer sets;
 `make example` creates a local reference under `examples/generated` without deployment.
 

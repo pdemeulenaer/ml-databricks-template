@@ -138,6 +138,25 @@ Connection configuration was reviewed on 28 October 2026 against the official
 and [VS Code configuration](https://docs.databricks.com/aws/en/dev-tools/vscode-ext/configure)
 guidance. Generated DEV defaults are checked without using workspace credentials.
 
+## Updating this project from the template
+
+Commit your project changes first, including `.copier-answers.yml` and `uv.lock`.
+Run the update from this project's directory with a tag available in the template source:
+
+```bash
+git status
+uvx copier update --vcs-ref v0.3.0 --skip-answered
+git status
+git diff
+```
+
+Replace `v0.3.0` with the version you want. Copier retains previous answers and asks
+new questions. Without `--vcs-ref`, it selects the latest eligible version tag. Review
+all changes, resolve any conflicts, update the lockfile if dependencies changed, and
+run the local checks before committing. `copier recopy` overwrites template files and
+does not preserve project modifications. A missing source path or original commit must
+be resolved before using `copier update`.
+
 ## Updating from an earlier bundle layout
 
 If an older generated repository defined `seed_dev`, `integration_dev` or the
