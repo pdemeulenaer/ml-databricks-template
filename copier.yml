@@ -61,7 +61,7 @@ dev_schemas_action:
   default: "{{ 'create' if dev_catalog_action == 'create' else 'use_existing' }}"
 dev_catalog_storage_root:
   type: str
-  help: Optional managed storage URL for a new DEV catalog (leave blank for metastore default)
+  help: Optional managed storage URL for new DEV catalog (blank uses workspace default storage)
   when: "{{ dev_catalog_action == 'create' }}"
   default: ""
 dev_catalog:
@@ -97,7 +97,7 @@ qa_schemas_action:
   default: "{{ 'create' if qa_catalog_action == 'create' else 'use_existing' }}"
 qa_catalog_storage_root:
   type: str
-  help: Optional managed storage URL for a new QA catalog (leave blank for metastore default)
+  help: Optional managed storage URL for new QA catalog (blank uses workspace default storage)
   when: "{{ qa_catalog_action == 'create' }}"
   default: ""
 qa_catalog:
@@ -134,7 +134,7 @@ prod_schemas_action:
   default: "{{ 'create' if prod_catalog_action == 'create' else 'use_existing' }}"
 prod_catalog_storage_root:
   type: str
-  help: Optional managed storage URL for a new PROD catalog (leave blank for metastore default)
+  help: Optional managed storage URL for new PROD catalog (blank uses workspace default storage)
   when: "{{ prod_catalog_action == 'create' }}"
   default: ""
 prod_catalog:

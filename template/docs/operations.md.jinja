@@ -15,17 +15,25 @@ configurable documented baseline; confirm support in your workspace.
 
 Choose the CLI profile yourself; `make` refuses an empty PROFILE. Generation does
 not contact Databricks or create any resources. Copier records a catalog name and
-whether each target should create a catalog or use an existing one. A new catalog
-is created by the bundle on deployment using the direct engine. Creating a catalog
-requires the appropriate metastore privileges and managed storage: configure a
-metastore default or provide the optional catalog storage URL when generating.
-Configure workspace-catalog bindings and appropriate grants, especially for PROD.
+whether each target should create a catalog or use an existing one. Creating a catalog
+requires `CREATE CATALOG` privileges. If a managed storage URL is specified, the bundle
+creates a managed catalog resource at that location. If the URL is blank, a serverless
+bundle job runs `CREATE CATALOG IF NOT EXISTS` during deployment and the deployment
+waits for it before creating the four schemas. In a serverless workspace this uses
+Databricks Default Storage; a workspace with metastore-managed storage may use its
+metastore root. The SQL path reuses a catalog with the chosen name if it already exists.
+
+The SQL-created catalog is created by the deployment job and is not managed as a bundle
+catalog resource. Deleting the bundle does not delete that catalog. The job reruns on
+deployment. Configure workspace-catalog bindings and grants, especially for PROD.
+Databricks Default Storage requires a serverless workspace and serverless compute. See
+[default storage](https://docs.databricks.com/aws/en/storage/default-storage).
 
 For an existing catalog, choose whether the bundle should **create** the four schemas
 or **use existing** schemas. Existing schemas are not taken over by the bundle and
 must already be named `lz`, `bronze`, `silver`, and `gold`. For a new catalog the
-bundle creates those four schemas. Managed catalogs and schemas are protected against
-bundle destroy; creating resources still requires appropriate privileges. A fresh
+bundle creates those four schemas. Bundle-managed catalog resources and schemas are protected
+against bundle destroy; creating resources still requires appropriate privileges. A fresh
 catalog may also have Databricks system-created schemas such as `default` and
 `information_schema`.
 

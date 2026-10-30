@@ -9,7 +9,7 @@ targets:
 {% if catalog_action == 'create' or schemas_action == 'create' %}
   {{ environment }}:
     resources:
-{% if catalog_action == 'create' %}
+{% if catalog_action == 'create' and storage_root %}
       catalogs:
         environment_catalog:
           name: ${var.catalog}
@@ -18,15 +18,37 @@ targets:
           storage_root: {{ storage_root | to_json }}
 {% endif %}
 {% endif %}
+{% if catalog_action == 'create' and not storage_root %}
+      jobs:
+        provision_catalog:
+          name: ${bundle.name}-provision-catalog
+          performance_target: STANDARD
+          tasks:
+            - task_key: create_catalog
+              notebook_task:
+                notebook_path: ../src/provision_catalog.py
+                base_parameters:
+                  catalog: ${var.catalog}
+      job_runs:
+        provision_catalog_run:
+          job_id: ${resources.jobs.provision_catalog.id}
+          lifecycle:
+            triggers:
+              - on_bundle_deploy: true
+{% endif %}
 {% if schemas_action == 'create' %}
       schemas:
 {% for schema in ['lz', 'bronze', 'silver', 'gold'] %}
         {{ schema }}:
           name: {{ schema }}
-{% if catalog_action == 'create' %}
+{% if catalog_action == 'create' and storage_root %}
           catalog_name: ${resources.catalogs.environment_catalog.name}
 {% else %}
           catalog_name: ${var.catalog}
+{% endif %}
+{% if catalog_action == 'create' and not storage_root %}
+          # This reference makes creation wait for the provisioning job to succeed.
+          comment: "Catalog provisioning run: ${resources.job_runs.provision_catalog_run.state.result_state}"
 {% endif %}
           lifecycle: {prevent_destroy: true}
 {% endfor %}

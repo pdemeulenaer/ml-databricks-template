@@ -126,3 +126,70 @@ def test_catalog_and_schema_choices(tmp_path, topology, catalog_action, schemas_
     assert ".silver.my_ml_project_curated" in pipeline
     assert ".gold.my_ml_project_features" in pipeline
     assert "/lz/my_ml_project_files/input" in pipeline
+
+
+@pytest.mark.parametrize("topology", ["single_workspace", "separate_workspaces"])
+def test_workspace_default_storage_catalog_creation(tmp_path, topology):
+    project = tmp_path / "project"
+    copy_project(
+        project,
+        workspace_topology=topology,
+        dev_workspace_host="https://workspace.example.com",
+        dev_catalog="test_dev",
+        dev_catalog_action="create",
+    )
+    config = yaml.safe_load((project / "resources/storage.schemas.yml").read_text())
+    resources = config["targets"]["dev"]["resources"]
+    assert "catalogs" not in resources
+    job = resources["jobs"]["provision_catalog"]
+    assert job["tasks"][0]["notebook_task"]["base_parameters"]["catalog"] == "${var.catalog}"
+    run = resources["job_runs"]["provision_catalog_run"]
+    assert run["job_id"] == "${resources.jobs.provision_catalog.id}"
+    assert run["lifecycle"]["triggers"] == [{"on_bundle_deploy": True}]
+    assert {s["name"] for s in resources["schemas"].values()} == {"lz", "bronze", "silver", "gold"}
+    assert all(
+        s["comment"]
+        == (
+            "Catalog provisioning run: "
+            "${resources.job_runs.provision_catalog_run.state.result_state}"
+        )
+        for s in resources["schemas"].values()
+    )
+
+
+def test_provisioning_notebook_validates_identifier_before_sql(tmp_path):
+    project = tmp_path / "project"
+    copy_project(
+        project,
+        dev_workspace_host="https://workspace.example.com",
+        dev_catalog="test_dev",
+        dev_catalog_action="create",
+    )
+    notebook = project / "src/provision_catalog.py"
+    calls = []
+
+    class Widgets:
+        def __init__(self, value):
+            self.value = value
+
+        def text(self, key, default):
+            assert (key, default) == ("catalog", "")
+
+        def get(self, key):
+            assert key == "catalog"
+            return self.value
+
+    class DBUtils:
+        def __init__(self, value):
+            self.widgets = Widgets(value)
+
+    class Spark:
+        def sql(self, statement):
+            calls.append(statement)
+
+    code = compile(notebook.read_text(), str(notebook), "exec")
+    exec(code, {"dbutils": DBUtils("test_dev"), "spark": Spark()})
+    assert calls == ["CREATE CATALOG IF NOT EXISTS `test_dev`"]
+    with pytest.raises(ValueError, match="lowercase SQL identifier"):
+        exec(code, {"dbutils": DBUtils("bad`; DROP CATALOG x"), "spark": Spark()})
+    assert len(calls) == 1

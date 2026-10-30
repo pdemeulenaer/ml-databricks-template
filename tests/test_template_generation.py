@@ -267,7 +267,16 @@ def test_mixed_catalog_choices_are_valid_bundle_configuration(tmp_path, bundle_s
     qa = storage["targets"]["qa"]["resources"]
     assert set(dev["schemas"]) == {"lz", "bronze", "silver", "gold"}
     assert set(qa["schemas"]) == {"lz", "bronze", "silver", "gold"}
-    assert "catalogs" in dev and "catalogs" not in qa
+    assert "catalogs" not in dev and "catalogs" not in qa
+    assert dev["job_runs"]["provision_catalog_run"]["job_id"] == (
+        "${resources.jobs.provision_catalog.id}"
+    )
+    assert all(
+        definition["comment"].endswith(
+            "${resources.job_runs.provision_catalog_run.state.result_state}"
+        )
+        for definition in dev["schemas"].values()
+    )
     assert "prod" not in storage["targets"]
     assert dev["volumes"]["landing_files"]["schema_name"] == "${resources.schemas.lz.name}"
     assert dev["pipelines"]["features"]["schema"] == "${resources.schemas.gold.name}"
