@@ -38,6 +38,10 @@ variables:
     default: /Workspace/Projects/${bundle.name}/${bundle.target}
   runtime_version:
     default: "4"
+  runtime_dependencies:
+    description: Wheel and locked runtime dependencies, populated by the export script
+    type: complex
+    default: [../dist/*.whl]
   schedule_pause:
     default: PAUSED
   data_cron:

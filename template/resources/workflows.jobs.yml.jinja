@@ -43,7 +43,7 @@ resources:
         - environment_key: runtime
           spec:
             environment_version: ${var.runtime_version}
-            dependencies: [../dist/*.whl]
+            dependencies: ${var.runtime_dependencies}
     inference:
       name: ${bundle.name}-inference
       schedule:
@@ -75,7 +75,7 @@ resources:
         - environment_key: runtime
           spec:
             environment_version: ${var.runtime_version}
-            dependencies: [../dist/*.whl]
+            dependencies: ${var.runtime_dependencies}
     monitoring:
       name: ${bundle.name}-monitoring
       performance_target: STANDARD
@@ -107,7 +107,7 @@ resources:
         - environment_key: runtime
           spec:
             environment_version: ${var.runtime_version}
-            dependencies: [../dist/*.whl]
+            dependencies: ${var.runtime_dependencies}
     smoke:
       name: ${bundle.name}-smoke
       performance_target: STANDARD
@@ -135,4 +135,4 @@ resources:
         - environment_key: runtime
           spec:
             environment_version: ${var.runtime_version}
-            dependencies: [../dist/*.whl]
+            dependencies: ${var.runtime_dependencies}

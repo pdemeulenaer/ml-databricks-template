@@ -17,4 +17,4 @@ targets:
             - environment_key: runtime
               spec:
                 environment_version: ${var.runtime_version}
-                dependencies: [../dist/*.whl]
+                dependencies: ${var.runtime_dependencies}

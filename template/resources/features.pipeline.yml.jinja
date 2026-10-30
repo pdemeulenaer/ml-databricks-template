@@ -11,7 +11,7 @@ resources:
             path: ../pipelines/transformations.py
       environment:
         environment_version: "${var.runtime_version}"
-        dependencies: [../dist/*.whl]
+        dependencies: ${var.runtime_dependencies}
       configuration:
         project.catalog: ${var.catalog}
         project.landing_volume: ${resources.volumes.landing_files.name}

@@ -1,4 +1,4 @@
-"""Export locked runtime dependencies into bundle job/pipeline environments."""
+"""Export locked runtime dependencies without redefining bundle resources."""
 
 import json
 import subprocess
@@ -15,45 +15,18 @@ def main():
     dependencies = [
         line for line in exported.splitlines() if line.strip() and not line.startswith("#")
     ]
-    # JSON is valid YAML. Generated overlays are excluded from version control.
-    resources = {
-        "jobs": {
-            key: {
-                "environments": [
-                    {
-                        "environment_key": "runtime",
-                        "spec": {"dependencies": ["../dist/*.whl", *dependencies]},
-                    }
-                ]
-            }
-            for key in ("training", "inference", "monitoring", "smoke")
-        }
+    # All resources live under resources/, so the wheel is relative to that directory.
+    runtime_dependencies = ["../dist/*.whl", *dependencies]
+    targets = {
+        target: {"variables": {"runtime_dependencies": runtime_dependencies}}
+        for target in ("dev", "qa", "prod")
     }
-    resources["pipelines"] = {
-        "features": {"environment": {"dependencies": ["../dist/*.whl", *dependencies]}}
-    }
-    Path("resources/runtime.generated.yml").write_text(
-        json.dumps({"resources": resources}, indent=2)
-    )
-    dev = {
-        "targets": {
-            "dev": {
-                "resources": {
-                    "jobs": {
-                        "seed_dev": {
-                            "environments": [
-                                {
-                                    "environment_key": "runtime",
-                                    "spec": {"dependencies": ["../dist/*.whl", *dependencies]},
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        }
-    }
-    Path("resources/dev-runtime.generated.yml").write_text(json.dumps(dev, indent=2))
+    # JSON is valid YAML. Target variables augment config without redefining resources.
+    Path("resources/runtime.generated.yml").write_text(json.dumps({"targets": targets}, indent=2))
+    # Replace the legacy DEV resource overlay left by v0.2.0 on existing projects.
+    legacy = Path("resources/dev-runtime.generated.yml")
+    if legacy.exists():
+        legacy.write_text("{}\n")
 
 
 if __name__ == "__main__":
