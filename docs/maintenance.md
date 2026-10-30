@@ -53,8 +53,9 @@ project modifications and workspace validation separately in the operations guid
 ## Release validation
 
 The root lockfile is committed. Generated lockfiles are created after rendering rather
-than copied from a different package identity. Remote dependency overlays are exported
-from each generated lockfile before validation/deployment and ignored by Git.
+than copied from a different package identity. The generated lockfile governs local development. Databricks jobs and pipelines install
+the project wheel and resolve its declared dependencies separately; remote versions may
+differ from the local lockfile.
 
 Before tagging a release: inspect generated diffs, run the local suite and strict docs,
 choose a DEV profile, obtain authorization, validate/deploy the bundle and run the actual

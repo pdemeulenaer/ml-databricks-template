@@ -32,6 +32,6 @@ Projects using a shared catalog must coordinate ownership, object names and gran
 Bundle targets select deployment settings; grants and bindings enforce isolation.
 
 The bundle root `databricks.yml` declares variables and target settings. It includes
-`resources/*.yml`, where the pipeline, schemas, experiment and jobs are defined.
+resource files by type suffix, where the pipeline, schemas, experiment and jobs are defined.
 The seed and integration jobs are defined under `targets.dev.resources` in their
 resource files, so they are available only in DEV.

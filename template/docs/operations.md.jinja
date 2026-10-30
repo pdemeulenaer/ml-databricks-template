@@ -4,16 +4,20 @@
 
 Use Python 3.12 and `uv`. Run `uv lock` once after generation, commit `uv.lock`,
 then use `uv sync --locked --group dev --group docs`. Run `make test lint security
-docs-build`, `uv run pre-commit install`, and `make demo`. The local lockfile controls
-local Python. Bundle job environments separately install the built wheel and exact
-runtime dependencies exported by `scripts/export_runtime.py` from the lockfile.
-The serverless pipeline installs that same wheel and dependencies. After updating from
-an older template, run `uv run python scripts/export_runtime.py` once before invoking
-`databricks bundle validate` directly. This replaces the old generated resource overlays
-that would otherwise produce duplicate resource errors. The `make bundle-validate` and
-`make bundle-deploy` commands run the exporter automatically. Spark is supplied
-by Databricks, not installed in the local environment. Environment version 4 is a
+docs-build`, `uv run pre-commit install`, and `make demo`. The local lockfile controls local Python. Bundle jobs and the pipeline install the
+project wheel through their Databricks environment settings. The wheel declares its
+runtime dependencies in `pyproject.toml`; Databricks resolves those requirements when
+it installs the wheel. The remote environment does **not** automatically use `uv.lock`,
+so transitive versions may differ from local development. Pin and verify the remote
+environment separately when exact reproducibility is required. See [Databricks bundle
+library dependencies](https://docs.databricks.com/aws/en/dev-tools/bundles/library-dependencies).
+Spark is supplied by Databricks, not installed in the local environment. Environment version 4 is a
 configurable documented baseline; confirm support in your workspace.
+
+The bundle includes files named by resource type, such as `*.job.yml` and
+`*.pipeline.yml`. If you introduce a new resource type, add its pattern to the bundle's
+`include` list. Old ignored `resources/*.generated.yml` files from earlier versions
+are not loaded and can be removed after the update.
 
 ## Workspace setup (requires explicit authorization)
 

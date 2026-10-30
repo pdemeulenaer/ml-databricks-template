@@ -54,12 +54,10 @@ build:
 require-profile:
 	@test -n "$(PROFILE)" || (printf '%s\n' 'Set PROFILE explicitly; no default profile is selected.' >&2; exit 2)
 
-bundle-validate: require-profile
-	$(UV) run python scripts/export_runtime.py
+bundle-validate: require-profile build
 	databricks bundle validate --strict --target "$(TARGET)" --profile "$(PROFILE)"
 
 bundle-deploy: require-profile
-	$(UV) run python scripts/export_runtime.py
 	databricks bundle deploy --target "$(TARGET)" --profile "$(PROFILE)"
 
 integration-dev: require-profile

@@ -36,6 +36,6 @@ tight startup SLA. Documentation, dependencies and the offline CLI schema checks
 [official bundle examples](https://docs.databricks.com/aws/en/dev-tools/bundles/examples).
 
 The generated `databricks.yml` declares the bundle, variables and targets and includes
-`resources/*.yml`. The shared workflows and DEV-only seed and integration jobs are defined in resource
+resource files by their type suffix. The shared workflows and DEV-only seed and integration jobs are defined in resource
 files; the latter are scoped to `targets.dev.resources` in those files.
 The pipeline, schemas, volume and MLflow experiment are also defined under `resources/`.

@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import sys
+import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
@@ -137,9 +138,7 @@ def test_architecture_matrix(tmp_path, bundle_schema, problem, topology, mode):
         None,
         *[[{"task_key": key}] for key in ("data", "train", "infer", "monitor")],
     ]
-    assert dev_jobs["seed_dev"]["environments"][0]["spec"]["dependencies"] == (
-        "${var.runtime_dependencies}"
-    )
+    assert dev_jobs["seed_dev"]["environments"][0]["spec"]["dependencies"] == ["../dist/*.whl"]
     for workflow in project.glob(".github/workflows/*.yml"):
         # BaseLoader preserves GitHub's YAML 1.2 'on' instead of interpreting it as boolean.
         parsed = yaml.load(workflow.read_text(), Loader=yaml.BaseLoader)
@@ -155,27 +154,17 @@ def test_generated_project_checks(tmp_path, problem):
     run(["uv", "sync", "--group", "dev", "--group", "docs", "--quiet"], project)
     run(["make", "test", "lint", "security", "docs-build"], project)
     run(["uv", "run", "python", "scripts/check_bundle.py"], project)
-    # Simulate ignored v0.2.0 overlays left behind by an update.
-    legacy = project / "resources/dev-runtime.generated.yml"
-    legacy.write_text(json.dumps({"targets": {"dev": {"resources": {"jobs": {"seed_dev": {}}}}}}))
-    (project / "resources/runtime.generated.yml").write_text(
-        json.dumps({"resources": {"jobs": {"training": {}}, "pipelines": {"features": {}}}})
-    )
-    run(["uv", "run", "python", "scripts/export_runtime.py"], project)
-    assert yaml.safe_load(legacy.read_text()) == {}
+    assert not (project / "scripts/export_runtime.py").exists()
     run(["uv", "build", "--quiet"], project)
-    assert list((project / "dist").glob("*.whl"))
-    runtime = json.loads((project / "resources/runtime.generated.yml").read_text())
-    assert set(runtime) == {"targets"}
-    assert set(runtime["targets"]) == {"dev", "qa", "prod"}
-    deps = runtime["targets"]["dev"]["variables"]["runtime_dependencies"]
-    assert deps[0] == "../dist/*.whl"
-    assert all(
-        target["variables"]["runtime_dependencies"] == deps
-        for target in runtime["targets"].values()
-    )
-    assert any(dep.startswith("mlflow==") for dep in deps)
-    assert not any(dep.startswith("pytest==") for dep in deps)
+    wheels = list((project / "dist").glob("*.whl"))
+    assert len(wheels) == 1
+    with zipfile.ZipFile(wheels[0]) as archive:
+        metadata_path = next(
+            name for name in archive.namelist() if name.endswith(".dist-info/METADATA")
+        )
+        metadata = archive.read(metadata_path).decode()
+    assert "Requires-Dist: mlflow" in metadata
+    assert "Requires-Dist: numpy" in metadata
     run(["make", "demo"], project)
     metrics = json.loads((project / "artifacts/demo/metrics.json").read_text())
     report = json.loads((project / "artifacts/demo/monitoring.json").read_text())
@@ -340,22 +329,28 @@ def fake_databricks_endpoint():
         server.server_close()
 
 
-def test_runtime_export_removes_duplicate_resources_from_cli_config(
-    tmp_path, fake_databricks_endpoint
-):
+def test_legacy_runtime_overlays_are_not_included(tmp_path, fake_databricks_endpoint):
     project = render(tmp_path / "project")
     config = project / "databricks.yml"
-    config.write_text(
-        config.read_text().replace("https://dev.example.databricks.com", fake_databricks_endpoint)
-    )
+    updated = config.read_text()
+    for target in ("dev", "qa", "prod"):
+        updated = updated.replace(
+            f"https://{target}.example.databricks.com", fake_databricks_endpoint
+        )
     old_runtime = project / "resources/runtime.generated.yml"
     old_runtime.write_text(json.dumps({"resources": {"jobs": {"training": {}}}}))
     old_dev = project / "resources/dev-runtime.generated.yml"
     old_dev.write_text(json.dumps({"targets": {"dev": {"resources": {"jobs": {"seed_dev": {}}}}}}))
+    original_overlays = [old_runtime.read_bytes(), old_dev.read_bytes()]
     fake_config = tmp_path / "databrickscfg"
     fake_config.write_text(f"[offline_test]\nhost = {fake_databricks_endpoint}\ntoken = fake\n")
     env = {k: v for k, v in os.environ.items() if not k.startswith(("DATABRICKS_", "BUNDLE_"))}
-    env.update(DATABRICKS_CONFIG_FILE=str(fake_config), DATABRICKS_HOST=fake_databricks_endpoint)
+    env.update(
+        DATABRICKS_CONFIG_FILE=str(fake_config),
+        DATABRICKS_HOST=fake_databricks_endpoint,
+        BUNDLE_VAR_run_as="00000000-0000-0000-0000-000000000000",
+        BUNDLE_VAR_model_version="1",
+    )
     command = [
         "databricks",
         "bundle",
@@ -367,35 +362,35 @@ def test_runtime_export_removes_duplicate_resources_from_cli_config(
         "-o",
         "json",
     ]
+    # The previous broad include reproduces the error reported for the old template.
+    config.write_text(
+        updated.replace(
+            "  - resources/*.job.yml\n  - resources/*.jobs.yml\n  - resources/*.pipeline.yml\n"
+            "  - resources/*.schemas.yml\n  - resources/*.volume.yml\n"
+            "  - resources/*.experiment.yml",
+            "  - resources/*.yml",
+        )
+    )
     before = subprocess.run(
         command, cwd=project, env=env, capture_output=True, text=True, timeout=30
     )
     assert "multiple resources or scripts have been defined with the same key" in before.stderr
 
-    shim = tmp_path / "bin"
-    shim.mkdir()
-    fake_uv = shim / "uv"
-    fake_uv.write_text('#!/bin/sh\nprintf "mlflow==3.17.2\\nnumpy==2.1.0\\n"\n')
-    fake_uv.chmod(0o755)
-    export_env = {**env, "PATH": str(shim) + os.pathsep + env["PATH"]}
-    exported = subprocess.run(
-        [sys.executable, "scripts/export_runtime.py"],
-        cwd=project,
-        env=export_env,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    assert exported.returncode == 0, exported.stderr
-    after = subprocess.run(
-        command, cwd=project, env=env, capture_output=True, text=True, timeout=30
-    )
-    assert after.returncode == 0, after.stderr
-    resources = json.loads(after.stdout)["resources"]
-    assert {"training", "inference", "monitoring", "smoke", "seed_dev"} <= set(resources["jobs"])
-    for key in ("training", "inference", "monitoring", "smoke", "seed_dev"):
-        dependencies = resources["jobs"][key]["environments"][0]["spec"]["dependencies"]
-        assert "mlflow==3.17.2" in dependencies
-        assert "./dist/*.whl" in dependencies
-    assert "mlflow==3.17.2" in resources["pipelines"]["features"]["environment"]["dependencies"]
-    assert yaml.safe_load(old_dev.read_text()) == {}
+    # The new configuration ignores both legacy generated files, without mutating them.
+    config.write_text(updated)
+    for target in ("dev", "qa", "prod"):
+        target_command = [*command]
+        target_command[target_command.index("-t") + 1] = target
+        after = subprocess.run(
+            target_command, cwd=project, env=env, capture_output=True, text=True, timeout=30
+        )
+        assert after.returncode == 0, after.stderr
+        resources = json.loads(after.stdout)["resources"]
+        jobs = ["training", "inference", "monitoring", "smoke"]
+        if target == "dev":
+            jobs.append("seed_dev")
+        for key in jobs:
+            deps = resources["jobs"][key]["environments"][0]["spec"]["dependencies"]
+            assert deps == ["./dist/*.whl"]
+        assert resources["pipelines"]["features"]["environment"]["dependencies"] == ["./dist/*.whl"]
+    assert [old_runtime.read_bytes(), old_dev.read_bytes()] == original_overlays

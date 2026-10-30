@@ -9,13 +9,19 @@ experimental:
   # DEV mode must not add a user prefix to the four shared schema names.
   skip_name_prefix_for_schema: true
 
+# Keep resource types explicit so old, ignored *.generated.yml files are not loaded.
 include:
-  - resources/*.yml
+  - resources/*.job.yml
+  - resources/*.jobs.yml
+  - resources/*.pipeline.yml
+  - resources/*.schemas.yml
+  - resources/*.volume.yml
+  - resources/*.experiment.yml
 
 artifacts:
   wheel:
     type: whl
-    build: uv build && uv run python scripts/export_runtime.py
+    build: uv build --wheel
     path: .
 
 sync:
@@ -38,10 +44,6 @@ variables:
     default: /Workspace/Projects/${bundle.name}/${bundle.target}
   runtime_version:
     default: "4"
-  runtime_dependencies:
-    description: Wheel and locked runtime dependencies, populated by the export script
-    type: complex
-    default: [../dist/*.whl]
   schedule_pause:
     default: PAUSED
   data_cron:
